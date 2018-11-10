@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+hpath=target/x86_64-hydroxide/release/bootimage-hydroxide.bin
+qemu-system-x86_64 -drive format=raw,file=$hpath

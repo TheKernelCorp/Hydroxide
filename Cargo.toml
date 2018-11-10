@@ -1,0 +1,16 @@
+[package]
+name = "hydroxide"
+version = "0.1.0"
+authors = ["SplittyDev <splittydev@protonmail.com>"]
+edition = "2018"
+
+[dependencies]
+x86_64 = "0.3.4"
+bootloader = "0.3.4"
+lazy_static = { version = '1.2.0', features = ['nightly', 'spin_no_std'] }
+spin = "0.4.10"
+pic8259_simple = "0.1.1"
+linked_list_allocator = "0.6.3"
+
+[package.metadata.bootimage]
+default-target = "x86_64-hydroxide.json"
