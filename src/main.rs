@@ -69,6 +69,7 @@ extern crate x86_64;
 extern crate spin;
 extern crate pic8259_simple;
 extern crate linked_list_allocator;
+extern crate pc_keyboard;
 
 //
 //
