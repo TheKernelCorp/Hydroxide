@@ -116,16 +116,17 @@ impl TerminalDevice {
     }
 
     fn scroll(&mut self) {
-        let chr = chattr!(b' ', self.color);
         let buf = unsafe { self.buf.as_mut() };
         for y in 1..VGA_HEIGHT {
             for x in 0..VGA_WIDTH {
-                let off = offset!(x, y);
-                buf[off - VGA_HEIGHT] = buf[off];
+                let off_cur = offset!(x, y);
+                let off_new = offset!(x, y - 1);
+                buf[off_new] = buf[off_cur];
             }
         }
+        let chr_filler = chattr!(b' ', self.color);
         for x in 0..VGA_WIDTH {
-            buf[VGA_SIZE - VGA_WIDTH + x] = chr;
+            buf[VGA_SIZE - VGA_WIDTH + x] = chr_filler;
         }
     }
 
