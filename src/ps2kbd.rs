@@ -4,31 +4,13 @@ use x86_64::structures::idt::ExceptionStackFrame;
 use x86_64::instructions::port::Port;
 use spin::Mutex;
 use lazy_static::lazy_static;
+use pc_keyboard::{
+    Keyboard,
+    DecodedKey,
+    ScancodeSet1,
+    layouts::Us104Key,
+};
 use crate::pic::PIC8259;
-
-// TODO: Rethink that design and actually use it
-
-enum KeyAction {
-    Press(Key),
-    Release(Key),
-}
-
-enum Key {
-    Char(char),
-    Modifier {
-        ctrl: bool,
-        lalt: bool,
-        ralt: bool,
-        lshift: bool,
-        rshift: bool,
-    },
-}
-
-//
-// Key maps
-//
-
-static KEYMAP_EN_US: &'static str = "\0\x1b1234567890-=\x08\tqwertyuiop[]\x0a\0asdfghjkl;'`\0\x5czxcvbnm,./\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0-\0\0\0+\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0!@#$%^&*()_+\0\0QWERTYUIOP{}\x0a\0ASDFGHJKL:\x22~\0|ZXCVBNM<>?\0\0 \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0-\0\0\0+\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 
 //
 // Keyboard registers
@@ -55,11 +37,9 @@ lazy_static! {
 // Global state
 //
 
-// TODO: This should be removed in the future.
-// TODO: I'm thinking of serialization of key actions using enums
 lazy_static! {
-    pub static ref LSHIFT: Mutex<bool> = Mutex::new(false);
-    pub static ref RSHIFT: Mutex<bool> = Mutex::new(false);
+    pub static ref KEYBOARD: Mutex<Keyboard<Us104Key, ScancodeSet1>> =
+        Mutex::new(Keyboard::new(Us104Key, ScancodeSet1));
 }
 
 //
@@ -70,14 +50,14 @@ lazy_static! {
 // ST = Self test
 //
 
-const KBD_RES_ACK: u16 = 0xFA;
-const KBD_RES_ECHO: u16 = 0xEE;
-const KBD_RES_RESEND: u16 = 0xFE;
-const KBD_RES_ERROR_A: u16 = 0x00;
-const KBD_RES_ERROR_B: u16 = 0xFF;
-const KBD_RES_ST_PASS: u16 = 0xAA;
-const KBD_RES_ST_FAIL_A: u16 = 0xFC;
-const KBD_RES_ST_FAIL_B: u16 = 0xFD;
+const KBD_RES_ACK: u8 = 0xFA;
+const KBD_RES_ECHO: u8 = 0xEE;
+const KBD_RES_RESEND: u8 = 0xFE;
+const KBD_RES_ERROR_A: u8 = 0x00;
+const KBD_RES_ERROR_B: u8 = 0xFF;
+const KBD_RES_ST_PASS: u8 = 0xAA;
+const KBD_RES_ST_FAIL_A: u8 = 0xFC;
+const KBD_RES_ST_FAIL_B: u8 = 0xFD;
 
 //
 // Keyboard command constants
@@ -115,17 +95,95 @@ impl PS2Keyboard {
     pub fn init() {
         unsafe {
 
-            // Reset LEDs
-            PS2Keyboard::send_byte(KBD_COM_LED);
-            PS2Keyboard::send_byte(0x00);
+            // Run self test
+            PS2Keyboard::run_self_test();
 
-            // Set fastest refresh rate
-            PS2Keyboard::send_byte(KBD_COM_TYPEMATIC);
-            PS2Keyboard::send_byte(0x00);
+            // Reset LEDs
+            PS2Keyboard::set_leds(0x00);
+
+            // Set scancode-set 1
+            PS2Keyboard::set_scan_table(0x02);
+            if let Some(code) = PS2Keyboard::get_scan_table() {
+                println!("[ps2kbd] info: verified usage of scan table {}", code);
+            }
 
             // Enable
             PS2Keyboard::send_byte(KBD_COM_SCAN_ON);
+            PS2Keyboard::ack();
         }
+    }
+
+    unsafe fn run_self_test() {
+        PS2Keyboard::_run_self_test(false);
+    }
+
+    unsafe fn _run_self_test(resent: bool) {
+        PS2Keyboard::send_byte(KBD_COM_SELF_TEST);
+        match PS2Keyboard::get_status() {
+            KBD_RES_ST_PASS => println!("[ps2kbd] info: self test passed"),
+            KBD_RES_ST_FAIL_A | KBD_RES_ST_FAIL_B => println!("[ps2kbd] error: self test failed"),
+            KBD_RES_RESEND if !resent => PS2Keyboard::_run_self_test(true),
+            KBD_RES_RESEND => println!("[ps2kbd] error: unable to run self test"),
+            _ => println!("[ps2kbd] error: invalid response")
+        }
+    }
+
+    unsafe fn set_leds(byte: u8) {
+        PS2Keyboard::_set_leds(byte, false);
+    }
+
+    unsafe fn _set_leds(byte: u8, resent: bool) {
+        PS2Keyboard::send_byte(KBD_COM_LED);
+        PS2Keyboard::send_byte(byte);
+        match PS2Keyboard::get_status() {
+            KBD_RES_ACK => println!("[ps2kbd] info: updated led status"),
+            KBD_RES_RESEND if !resent => PS2Keyboard::_set_leds(byte, true),
+            KBD_RES_RESEND => println!("[ps2kbd] error: unable to set led status"),
+            _ => println!("[ps2kbd] error: invalid response"),
+        }
+    }
+
+    unsafe fn set_scan_table(code: u8) {
+        PS2Keyboard::_set_scan_table(code, false);
+    }
+
+    unsafe fn _set_scan_table(code: u8, resent: bool) {
+        PS2Keyboard::send_byte(KBD_COM_SCANCODE);
+        PS2Keyboard::send_byte(code);
+        match PS2Keyboard::get_status() {
+            KBD_RES_ACK => println!("[ps2kbd] info: using scan table {}", code),
+            KBD_RES_RESEND if !resent => PS2Keyboard::_set_scan_table(code, true),
+            KBD_RES_RESEND => println!("[ps2kbd] error: unable to set scan table"),
+            _ => println!("[ps2kbd] error: invalid response"),
+        }
+    }
+
+    unsafe fn get_scan_table() -> Option<u8> {
+        PS2Keyboard::_get_scan_table(false)
+    }
+
+    unsafe fn _get_scan_table(resent: bool) -> Option<u8> {
+        PS2Keyboard::send_byte(KBD_COM_SCANCODE);
+        PS2Keyboard::send_byte(0x00);
+        match PS2Keyboard::get_status() {
+            KBD_RES_ACK => {
+                Some(PS2Keyboard::get_status())
+            },
+            KBD_RES_RESEND if !resent => PS2Keyboard::_get_scan_table(true),
+            KBD_RES_RESEND => {
+                println!("[ps2kbd] error: unable to get scan table");
+                None
+            },
+            resp => {
+                println!("[ps2kbd] error: invalid response: 0x{:x}", resp);
+                None
+            },
+        }
+    }
+
+    unsafe fn get_status() -> u8 {
+        while KBD_STATUS_PORT.lock().read() & 0x2 != 0 {}
+        KBD_DATA_PORT.lock().read()
     }
 
     /// Acknowledge the keyboard status
@@ -142,33 +200,25 @@ impl PS2Keyboard {
 
 fn read_next_key() {
     let mut data = unsafe { KBD_DATA_PORT.lock().read() };
-    let pressed = data & 0x80 == 0;
-    data &= if pressed { 0xFF } else { !0x80 };
-
-    if pressed {
-        if data == 42 {
-            *LSHIFT.lock() = true;
-            return;
-        }
-        if data == 55 {
-            *RSHIFT.lock() = true;
-            return;
-        }
-        if *LSHIFT.lock() || *RSHIFT.lock() {
-            data += 128;
-        }
-        // TODO: Write to buffer instead of printing
-        print!("{}", KEYMAP_EN_US.chars().nth(data as usize).unwrap());
-    } else {
-        if data == 42 {
-            *LSHIFT.lock() = false;
-            return;
-        }
-        if data == 55 {
-            *RSHIFT.lock() = false;
-            return;
-        }
-    }
+    let mut kbd = KEYBOARD.lock();
+    match kbd.add_byte(data) {
+        Ok(Some(event)) => {
+            let key = kbd.process_keyevent(event.clone());
+            if key.is_some() {
+                println!("kekse");
+                kbd.clear();
+                match key.unwrap() {
+                    DecodedKey::RawKey(code) => print!("{:?}", code),
+                    DecodedKey::Unicode(chr) => print!("{}", chr),
+                }
+            } else {
+                println!("NONE => {:?}", event);
+            }
+        },
+        Ok(None) => (),
+        Err(err) => (),
+    };
+    unsafe { PS2Keyboard::ack() };
 }
 
 pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut ExceptionStackFrame) {
