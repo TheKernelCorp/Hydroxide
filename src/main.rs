@@ -6,7 +6,6 @@
 // environment without std support.
 //
 #![no_std]
-
 //
 // no_main
 //
@@ -14,7 +13,6 @@
 // not being a main function.
 //
 #![no_main]
-
 //
 // Enable features
 //
@@ -27,7 +25,6 @@
 // to resort to naked function trickery.
 //
 #![feature(abi_x86_interrupt)]
-
 //
 // Enable pointer internals
 //
@@ -36,7 +33,6 @@
 // Unique pointer support.
 //
 #![feature(ptr_internals)]
-
 //
 // Enable allocation error handlers
 //
@@ -44,7 +40,6 @@
 // with a custom memory allocator.
 //
 #![feature(alloc_error_handler)]
-
 //
 // Enable panic info messages
 //
@@ -65,10 +60,10 @@
 // imports are not there.
 //
 
-extern crate x86_64;
-extern crate spin;
-extern crate pic8259_simple;
 extern crate linked_list_allocator;
+extern crate pic8259_simple;
+extern crate spin;
+extern crate x86_64;
 
 //
 //
@@ -138,6 +133,8 @@ mod vgaterm;
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
 
+mod pci;
+
 //
 //
 // Main entry point
@@ -155,6 +152,9 @@ pub extern "C" fn _start() -> ! {
     // x86_64::instructions::int3();
     // panic!("Hue");
     println!("Hello from Hydroxide.");
+
+    pci::tmp_init_devs();
+
     loop {
         x86_64::instructions::hlt(); // hlt
     }
