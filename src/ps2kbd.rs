@@ -40,6 +40,8 @@ lazy_static! {
 lazy_static! {
     pub static ref KEYBOARD: Mutex<Keyboard<Us104Key, ScancodeSet1>> =
         Mutex::new(Keyboard::new(Us104Key, ScancodeSet1));
+    
+    pub static ref KEYBOARD_INITIALIZED: Mutex<bool> = Mutex::new(false);
 }
 
 //
@@ -95,13 +97,16 @@ impl PS2Keyboard {
     pub fn init() {
         unsafe {
 
+            // Wait till the keyboard is ready
+            PS2Keyboard::wait_ready();
+
             // Run self test
             PS2Keyboard::run_self_test();
 
             // Reset LEDs
             PS2Keyboard::set_leds(0x00);
 
-            // Set scancode-set 1
+            // Set scancode-set 2
             PS2Keyboard::set_scan_table(0x02);
             if let Some(code) = PS2Keyboard::get_scan_table() {
                 println!("[ps2kbd] info: verified usage of scan table {}", code);
@@ -109,8 +114,11 @@ impl PS2Keyboard {
 
             // Enable
             PS2Keyboard::send_byte(KBD_COM_SCAN_ON);
-            PS2Keyboard::ack();
+            PS2Keyboard::wait_ready();
         }
+        
+        // Mark the keyboard as initialized
+        *KEYBOARD_INITIALIZED.lock() = true;
     }
 
     unsafe fn run_self_test() {
@@ -119,12 +127,12 @@ impl PS2Keyboard {
 
     unsafe fn _run_self_test(resent: bool) {
         PS2Keyboard::send_byte(KBD_COM_SELF_TEST);
-        match PS2Keyboard::get_status() {
+        match PS2Keyboard::read_byte() {
             KBD_RES_ST_PASS => println!("[ps2kbd] info: self test passed"),
             KBD_RES_ST_FAIL_A | KBD_RES_ST_FAIL_B => println!("[ps2kbd] error: self test failed"),
             KBD_RES_RESEND if !resent => PS2Keyboard::_run_self_test(true),
             KBD_RES_RESEND => println!("[ps2kbd] error: unable to run self test"),
-            _ => println!("[ps2kbd] error: invalid response")
+            b => println!("[ps2kbd] error: invalid response: {:x}", b)
         }
     }
 
@@ -135,11 +143,11 @@ impl PS2Keyboard {
     unsafe fn _set_leds(byte: u8, resent: bool) {
         PS2Keyboard::send_byte(KBD_COM_LED);
         PS2Keyboard::send_byte(byte);
-        match PS2Keyboard::get_status() {
+        match PS2Keyboard::read_byte() {
             KBD_RES_ACK => println!("[ps2kbd] info: updated led status"),
             KBD_RES_RESEND if !resent => PS2Keyboard::_set_leds(byte, true),
             KBD_RES_RESEND => println!("[ps2kbd] error: unable to set led status"),
-            _ => println!("[ps2kbd] error: invalid response"),
+            b => println!("[ps2kbd] error: invalid response: {:x}", b),
         }
     }
 
@@ -150,11 +158,11 @@ impl PS2Keyboard {
     unsafe fn _set_scan_table(code: u8, resent: bool) {
         PS2Keyboard::send_byte(KBD_COM_SCANCODE);
         PS2Keyboard::send_byte(code);
-        match PS2Keyboard::get_status() {
-            KBD_RES_ACK => println!("[ps2kbd] info: using scan table {}", code),
+        match PS2Keyboard::read_byte() {
+            KBD_RES_ACK => println!("[ps2kbd] info: setting scan table {}", code),
             KBD_RES_RESEND if !resent => PS2Keyboard::_set_scan_table(code, true),
             KBD_RES_RESEND => println!("[ps2kbd] error: unable to set scan table"),
-            _ => println!("[ps2kbd] error: invalid response"),
+            b => println!("[ps2kbd] error: invalid response: {:x}", b),
         }
     }
 
@@ -164,10 +172,15 @@ impl PS2Keyboard {
 
     unsafe fn _get_scan_table(resent: bool) -> Option<u8> {
         PS2Keyboard::send_byte(KBD_COM_SCANCODE);
-        PS2Keyboard::send_byte(0x00);
-        match PS2Keyboard::get_status() {
+        match PS2Keyboard::read_byte() {
             KBD_RES_ACK => {
-                Some(PS2Keyboard::get_status())
+                PS2Keyboard::send_byte(0x00);
+                match PS2Keyboard::read_byte() {
+                    0x43 => Some(1),
+                    0x41 => Some(2),
+                    0x3f => Some(3),
+                    _ => None,
+                }
             },
             KBD_RES_RESEND if !resent => PS2Keyboard::_get_scan_table(true),
             KBD_RES_RESEND => {
@@ -181,48 +194,67 @@ impl PS2Keyboard {
         }
     }
 
-    unsafe fn get_status() -> u8 {
+    /// Wait for the keyboard to become ready
+    unsafe fn wait_ready() {
         while KBD_STATUS_PORT.lock().read() & 0x2 != 0 {}
-        KBD_DATA_PORT.lock().read()
     }
 
-    /// Acknowledge the keyboard status
-    unsafe fn ack() {
-        while KBD_STATUS_PORT.lock().read() & 0x2 != 0 {}
+    // Read the keyboard data port
+    unsafe fn read_byte() -> u8 {
+        PS2Keyboard::wait_ready();
+        KBD_DATA_PORT.lock().read()
     }
 
     /// Send a byte to the keyboard data port
     unsafe fn send_byte(com: u8) {
-        PS2Keyboard::ack();
+        PS2Keyboard::wait_ready();
         KBD_DATA_PORT.lock().write(com);
     }
 }
 
 fn read_next_key() {
-    let mut data = unsafe { KBD_DATA_PORT.lock().read() };
+    let data = unsafe { KBD_DATA_PORT.lock().read() };
     let mut kbd = KEYBOARD.lock();
+    kbd.clear();
     match kbd.add_byte(data) {
         Ok(Some(event)) => {
             let key = kbd.process_keyevent(event.clone());
             if key.is_some() {
-                println!("kekse");
-                kbd.clear();
                 match key.unwrap() {
                     DecodedKey::RawKey(code) => print!("{:?}", code),
                     DecodedKey::Unicode(chr) => print!("{}", chr),
                 }
             } else {
-                println!("NONE => {:?}", event);
+                // println!("[ps2kbd] Key event is none: {:?}; {:?}", event.code, event.state);
             }
         },
         Ok(None) => (),
-        Err(err) => (),
+        Err(_) => (),
     };
-    unsafe { PS2Keyboard::ack() };
+    unsafe { PS2Keyboard::wait_ready() }
 }
 
 pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut ExceptionStackFrame) {
-    read_next_key();
+
+    // Wait till the keyboard is ready
+    unsafe {
+        PS2Keyboard::wait_ready();
+    }
+
+    // Is the keyboard already initialized?
+    if *KEYBOARD_INITIALIZED.lock() {
+
+        // Process the next key
+        read_next_key();
+    } else {
+
+        // Discard the key
+        unsafe {
+            KBD_DATA_PORT.lock().read();
+        }
+    }
+
+    // Notify the PIC
     unsafe {
         PIC8259
             ::get_chained_pics()
