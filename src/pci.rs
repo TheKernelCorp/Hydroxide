@@ -137,7 +137,7 @@ struct PCIDevice {
 }
 
 impl PCIDevice {
-  unsafe fn read_raw32(address: &PCIDeviceAddress, offset: u8) -> u32 {
+  unsafe fn pci_read32(address: &PCIDeviceAddress, offset: u8) -> u32 {
     assert!(offset & 0x3 == 0);
     PCI_CONFIG_ADDRESS
       .lock()
@@ -145,35 +145,59 @@ impl PCIDevice {
     PCI_CONFIG_DATA.lock().read()
   }
 
-  unsafe fn read16(address: &PCIDeviceAddress, offset: u8) -> u16 {
+  unsafe fn pci_write32(address: &PCIDeviceAddress, offset: u8, val: u32) {
+    assert!(offset & 0x3 == 0);
+    PCI_CONFIG_ADDRESS
+      .lock()
+      .write(u32::from(address) + offset as u32);
+    PCI_CONFIG_DATA.lock().write(val);
+  }
+
+  unsafe fn pci_read16(address: &PCIDeviceAddress, offset: u8) -> u16 {
     assert!(offset & 0x1 == 0);
     let aligned_offset = offset & !0x3;
-    let data_raw = PCIDevice::read_raw32(address, aligned_offset);
+    let data_raw = PCIDevice::pci_read32(address, aligned_offset);
     let data: PCIData = PCIData { val32: data_raw };
     data.val8[(offset & 0x3) as usize] as u16
       | ((data.val8[(offset & 0x3) as usize + 1] as u16) << 8)
   }
 
-  unsafe fn read8(address: &PCIDeviceAddress, offset: u8) -> u8 {
+  unsafe fn pci_read8(address: &PCIDeviceAddress, offset: u8) -> u8 {
     let aligned_offset = offset & !0x3;
-    let data_raw = PCIDevice::read_raw32(address, aligned_offset);
+    let data_raw = PCIDevice::pci_read32(address, aligned_offset);
     let data: PCIData = PCIData { val32: data_raw };
     data.val8[(offset & 0x3) as usize]
   }
 
+  fn read8(&self, offset: u8) -> u8 {
+    unsafe { PCIDevice::pci_read8(&self.address, offset) }
+  }
+
+  fn read16(&self, offset: u8) -> u16 {
+    unsafe { PCIDevice::pci_read16(&self.address, offset) }
+  }
+
+  fn read32(&self, offset: u8) -> u32 {
+    unsafe { PCIDevice::pci_read32(&self.address, offset) }
+  }
+
+  fn write32(&self, offset: u8, val: u32) {
+    unsafe { PCIDevice::pci_write32(&self.address, offset, val) }
+  }
+
   fn get_id(address: &PCIDeviceAddress) -> PCIDeviceID {
     PCIDeviceID {
-      device_id: unsafe { PCIDevice::read16(address, PCIFIELD_DEVICE_ID) },
-      vendor_id: unsafe { PCIDevice::read16(address, PCIFIELD_VENDOR_ID) },
+      device_id: unsafe { PCIDevice::pci_read16(address, PCIFIELD_DEVICE_ID) },
+      vendor_id: unsafe { PCIDevice::pci_read16(address, PCIFIELD_VENDOR_ID) },
     }
   }
 
   fn get_type(address: &PCIDeviceAddress) -> PCIDeviceType {
     PCIDeviceType {
-      class_id: unsafe { PCIDevice::read8(address, PCIFIELD_CLASS) },
-      subclass_id: unsafe { PCIDevice::read8(address, PCIFIELD_SUBCLASS) },
-      prog_if: unsafe { PCIDevice::read8(address, PCIFIELD_PROG_IF) },
-      rev_id: unsafe { PCIDevice::read8(address, PCIFIELD_REVISION_ID) },
+      class_id: unsafe { PCIDevice::pci_read8(address, PCIFIELD_CLASS) },
+      subclass_id: unsafe { PCIDevice::pci_read8(address, PCIFIELD_SUBCLASS) },
+      prog_if: unsafe { PCIDevice::pci_read8(address, PCIFIELD_PROG_IF) },
+      rev_id: unsafe { PCIDevice::pci_read8(address, PCIFIELD_REVISION_ID) },
     }
   }
 
@@ -216,12 +240,12 @@ impl PCIDevice {
             _ => {}
           }
         }
-        let header = unsafe { PCIDevice::read8(&addr, PCIFIELD_HHEADER_TYPE) };
+        let header = unsafe { PCIDevice::pci_read8(&addr, PCIFIELD_HHEADER_TYPE) };
         if header & 0x80 == 0x80 {
           num_func = 8;
         }
         if (header & 0x7f) == 0x1 {
-          let sub_bus_id = unsafe { PCIDevice::read8(&addr, PCIFIELD_SECONDARY_BUS_NUMBER) };
+          let sub_bus_id = unsafe { PCIDevice::pci_read8(&addr, PCIFIELD_SECONDARY_BUS_NUMBER) };
           let rec_ret = PCIDevice::find_on_bus(sub_bus_id, find, last);
           let ref addr = rec_ret.unwrap().address;
           if last.unwrap_or(0) < addr.into()
@@ -240,13 +264,110 @@ impl PCIDevice {
   fn search(find: &PCIFind, last: Option<u32>) -> Option<PCIDevice> {
     PCIDevice::find_on_bus(0, find, last)
   }
+
+  fn get_bar(&self, bar: u8) -> PCIBAR {
+    let lo = self.read32(0x10 + 4 * (bar + 0));
+
+    let mut res = PCIBAR {
+      addr_raw: lo as u64,
+      size_raw: 0,
+    };
+
+    if res.is_64bit() {
+      let hi = self.read32(0x10 + 4 * (bar + 1));
+      res.addr_raw |= (hi as u64) << 32;
+      self.write32(0x10 + 4 * (bar + 0), 0xFFFFFFFF);
+      self.write32(0x10 + 4 * (bar + 1), 0xFFFFFFFF);
+      let size_lo = self.read32(0x10 + 4 * (bar + 0));
+      let size_hi = self.read32(0x10 + 4 * (bar + 1));
+      self.write32(0x10 + 4 * (bar + 0), lo);
+      self.write32(0x10 + 4 * (bar + 1), hi);
+      res.size_raw = (size_hi as u64) << 32 | ((size_lo as u64) << 0);
+      res.size_raw = !(res.size_raw & 0xFFFFFFFFFFFFFFF0) + 1;
+    } else if res.is_32bit() {
+      self.write32(0x10 + 4 * (bar + 0), 0xFFFFFFFF);
+      let size_lo = self.read32(0x10 + 4 * (bar + 0));
+      self.write32(0x10 + 4 * (bar + 0), lo);
+      res.size_raw = (size_lo as u64) << 0;
+      res.size_raw = !(res.size_raw & 0xFFFFFFF0) + 1;
+      res.size_raw &= 0xFFFFFFFF;
+    } else if res.is_iospace() {
+      self.write32(0x10 + 4 * (bar + 0), 0xFFFFFFFF);
+      let size_lo = self.read32(0x10 + 4 * (bar + 0));
+      self.write32(0x10 + 4 * (bar + 0), lo);
+      res.size_raw = (size_lo as u64) << 0;
+      res.size_raw = !(res.size_raw & 0xFFFFFFFC) + 1;
+      res.size_raw &= 0xFFFFFFFF;
+    }
+
+    res
+  }
+}
+
+const PCIBAR_TYPE_IOSPACE: u8 = 0x0 << 1 | 0x1 << 0;
+const PCIBAR_TYPE_16BIT: u8 = 0x1 << 1 | 0x0 << 0;
+const PCIBAR_TYPE_32BIT: u8 = 0x0 << 1 | 0x0 << 0;
+const PCIBAR_TYPE_64BIT: u8 = 0x2 << 1 | 0x0 << 0;
+
+struct PCIBAR {
+  addr_raw: u64,
+  size_raw: u64,
+}
+
+impl PCIBAR {
+  fn addr(&self) -> u64 {
+    match self.is_iospace() {
+      true => self.addr_raw & 0xFFFFFFFFFFFFFFFC,
+      false => self.addr_raw & 0xFFFFFFFFFFFFFFF0,
+    }
+  }
+
+  fn size(&self) -> u64 {
+    self.size_raw & 0xFFFFFFFFFFFFFFFF
+  }
+
+  fn get_type(&self) -> u8 {
+    let raw = self.addr_raw as u8;
+    match raw & 0x3 {
+      PCIBAR_TYPE_IOSPACE => raw & 0x3,
+      _ => raw & 0x7,
+    }
+  }
+
+  fn is_iospace(&self) -> bool {
+    self.get_type() == PCIBAR_TYPE_IOSPACE
+  }
+
+  fn is_16bit(&self) -> bool {
+    self.get_type() == PCIBAR_TYPE_16BIT
+  }
+
+  fn is_32bit(&self) -> bool {
+    self.get_type() == PCIBAR_TYPE_32BIT
+  }
+
+  fn is_64bit(&self) -> bool {
+    self.get_type() == PCIBAR_TYPE_64BIT
+  }
+
+  fn is_mmio(&self) -> bool {
+    self.is_16bit() || self.is_32bit() || self.is_64bit()
+  }
 }
 
 pub fn tmp_init_devs() {
   let bge_dev = PCIDevice::search(&PCIFind::new(0x1234, 0x1111), None);
 
   match bge_dev {
-    Some(dev) => println!("[BGE Adapter @ 0x{:08x}] Found", u32::from(dev.address)),
+    Some(dev) => {
+      println!("[BGE Adapter @ 0x{:08x}] Found", u32::from(dev.address));
+      let fb_bar = dev.get_bar(0);
+      println!(
+        "[BGE Adapter @ 0x{:08x}] Framebuffer: 0x{:08x}",
+        u32::from(dev.address),
+        fb_bar.addr()
+      );
+    }
     None => println!("[BGE Adapter] Not found"),
   };
 }
