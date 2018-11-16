@@ -360,12 +360,37 @@ pub fn tmp_init_devs() {
 
   match bge_dev {
     Some(dev) => {
+      const VBE_DISPI_INDEX_ID: u16 = 0;
+      const VBE_DISPI_NUM_REGISTERS: u16 = 10;
+      fn read_reg(mmio: u64, index: u16) -> u16 {
+        use core::ptr::Unique;
+        println!("a");
+        assert!(index < VBE_DISPI_NUM_REGISTERS);
+        let regs: Unique<[u16; VBE_DISPI_NUM_REGISTERS as usize]> =
+          Unique::new((mmio) as *mut _).unwrap();
+        unsafe { regs.as_ref()[index as usize] }
+      }
+
       println!("[BGE Adapter @ 0x{:08x}] Found", u32::from(dev.address));
       let fb_bar = dev.get_bar(0);
       println!(
-        "[BGE Adapter @ 0x{:08x}] Framebuffer: 0x{:08x}",
+        "[BGE Adapter @ 0x{:08x}] Framebuffer BAR: 0x{:08x}",
         u32::from(dev.address),
         fb_bar.addr()
+      );
+      let mmio_bar = dev.get_bar(2);
+      if mmio_bar.is_mmio() {
+        println!(
+          "[BGE Adapter @ 0x{:08x}] MMIO BAR: 0x{:08x}",
+          u32::from(dev.address),
+          mmio_bar.addr()
+        );
+      }
+      let version = read_reg(mmio_bar.addr(), VBE_DISPI_INDEX_ID);
+      println!(
+        "[BGE Adapter @ 0x{:08x}] Version: 0x{:04x}",
+        u32::from(dev.address),
+        version
       );
     }
     None => println!("[BGE Adapter] Not found"),
