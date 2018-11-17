@@ -24,8 +24,8 @@ impl core::fmt::Display for POSTResult {
         let s = match *self {
             POSTResult::Ok => "OK",
             POSTResult::Fail => "FAIL",
-            POSTResult::Yes => "Y",
-            POSTResult::No => "N",
+            POSTResult::Yes => "YES",
+            POSTResult::No => "NO",
         };
         write!(f, "{}", s)
     }
