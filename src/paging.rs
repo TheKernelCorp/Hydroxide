@@ -88,6 +88,7 @@ impl Allocator {
   /// Marks the passed region in the memory map.
   ///
   /// Panics if a non-usable region (e.g. a reserved region) overlaps with the passed region.
+  #[allow(dead_code)]
   pub fn mark_allocated_region(&mut self, region: MemoryRegion) {
     for r in self.memory_map.iter_mut() {
       if region.range.start_frame_number >= r.range.end_frame_number {
@@ -183,8 +184,8 @@ impl Paging {
     flags: PageTableFlags,
     inclusive: bool,
   ) {
-    let mut table = self.page_table.as_mut().unwrap();
-    let mut alloc = self.allocator.as_mut().unwrap();
+    let table = self.page_table.as_mut().unwrap();
+    let alloc = self.allocator.as_mut().unwrap();
     match inclusive {
       false => {
         let range = PhysFrame::<Size4KiB>::range(

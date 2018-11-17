@@ -102,7 +102,6 @@ macro_rules! println {
 //
 //
 
-// TODO: Initialize the heap in the main function
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
@@ -145,6 +144,9 @@ use self::paging::Paging;
 mod bga;
 use self::bga::BochsGraphicsAdapter;
 
+mod heap;
+use self::heap::{find_heap_space, map_heap};
+
 //
 //
 // Main entry point
@@ -157,7 +159,11 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     GDT::init();
     IDT::init();
 
+    let (heap_start, heap_end, heap_size) = find_heap_space(bootinfo);
     Paging::init(bootinfo);
+
+    map_heap(&ALLOCATOR, heap_start, heap_end, heap_size);
+
     PIC8259::init();
     x86_64::instructions::interrupts::enable();
     PS2Keyboard::init();
