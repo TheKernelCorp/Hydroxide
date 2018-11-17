@@ -139,6 +139,10 @@ mod vgaterm;
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
 
+// Keyboard Controller
+mod kbc;
+use self::kbc::KBC;
+
 //
 //
 // Main entry point
