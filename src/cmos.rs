@@ -117,6 +117,7 @@ impl POSTData {
     );
 }
 
+/// DateTime information
 pub struct CMOSDateTime {
     pub second: u8,
     pub minute: u8,
@@ -128,6 +129,43 @@ pub struct CMOSDateTime {
     pub century: u8,
 }
 
+pub struct CMOSDate {
+    pub day_of_week: u8,
+    pub day_of_month: u8,
+    pub month: u8,
+    pub year: u16,
+    pub century: u8,
+}
+
+pub struct CMOSTime {
+    pub second: u8,
+    pub minute: u8,
+    pub hour: u8,
+}
+
+impl CMOSDateTime {
+
+    /// Convert the CMOSDateTime into a CMOSDate
+    pub fn as_date(&self) -> CMOSDate {
+        CMOSDate {
+            day_of_week: self.day_of_week,
+            day_of_month: self.day_of_month,
+            month: self.month,
+            year: self.year,
+            century: self.century,
+        }
+    }
+
+    /// Convert the CMOSDateTime into a CMOSTime
+    pub fn as_time(&self) -> CMOSTime {
+        CMOSTime {
+            second: self.second,
+            minute: self.minute,
+            hour: self.hour,
+        }
+    }
+}
+
 impl core::fmt::Display for CMOSDateTime {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(
@@ -136,6 +174,30 @@ impl core::fmt::Display for CMOSDateTime {
             year = self.year,
             month = self.month,
             day = self.day_of_month,
+            hour = self.hour,
+            minute = self.minute,
+            second = self.second,
+        )
+    }
+}
+
+impl core::fmt::Display for CMOSDate {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(
+            f,
+            "{year}-{month}-{day}",
+            year = self.year,
+            month = self.month,
+            day = self.day_of_month,
+        )
+    }
+}
+
+impl core::fmt::Display for CMOSTime {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(
+            f,
+            "{hour}:{minute}:{second}",
             hour = self.hour,
             minute = self.minute,
             second = self.second
