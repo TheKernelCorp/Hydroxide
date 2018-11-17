@@ -177,6 +177,7 @@ pub extern "C" fn _start() -> ! {
 
     // Say hello
     println!("Hello from Hydroxide.");
+    println!("{}", CMOS::read_date_time());
 
     // Idle
     loop {

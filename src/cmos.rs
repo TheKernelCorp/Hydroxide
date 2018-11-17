@@ -117,9 +117,66 @@ impl POSTData {
     );
 }
 
+pub struct CMOSDateTime {
+    pub second: u8,
+    pub minute: u8,
+    pub hour: u8,
+    pub day_of_week: u8,
+    pub day_of_month: u8,
+    pub month: u8,
+    pub year: u16,
+    pub century: u8,
+}
+
+impl core::fmt::Display for CMOSDateTime {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(
+            f,
+            "{year}-{month}-{day} {hour}:{minute}:{second}",
+            year = self.year,
+            month = self.month,
+            day = self.day_of_month,
+            hour = self.hour,
+            minute = self.minute,
+            second = self.second
+        )
+    }
+}
+
 pub struct CMOS;
 impl CMOS {
 
+    #[inline(always)]
+    fn bcd_to_dec(bcd: u8) -> u8 {
+        (bcd & 0x0F) + 10 * ((bcd & 0xF0) >> 4)
+    }
+
+    /// Read the current date and time
+    pub fn read_date_time() -> CMOSDateTime {
+        unsafe {
+            let second = Self::bcd_to_dec(Self::read(0x00));
+            let minute = Self::bcd_to_dec(Self::read(0x02));
+            let hour = Self::bcd_to_dec(Self::read(0x04));
+            let day_of_week = Self::bcd_to_dec(Self::read(0x06));
+            let day_of_month = Self::bcd_to_dec(Self::read(0x07));
+            let month = Self::bcd_to_dec(Self::read(0x08));
+            let year_high = Self::bcd_to_dec(Self::read(0x09));
+            let century = Self::bcd_to_dec(Self::read(0x32));
+            let year = 100 * u16::from(century) + u16::from(year_high);
+            CMOSDateTime {
+                second,
+                minute,
+                hour,
+                day_of_week,
+                day_of_month,
+                month,
+                year,
+                century,
+            }
+        } 
+    }
+
+    /// Read POST status data
     pub fn read_post_data() -> Option<POSTData> {
         let b = unsafe { CMOS::read(0x0E) };
         POSTData::from_bits(b)
