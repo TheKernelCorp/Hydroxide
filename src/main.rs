@@ -170,7 +170,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     println!("Hello from Hydroxide.");
 
-    /*let bga = match BochsGraphicsAdapter::detect() {
+    let bga = match BochsGraphicsAdapter::detect() {
         Ok(device) => {
             let dev = BochsGraphicsAdapter::new(&device).init();
             println!("[BGA @ 0x{:08x}] Found", dev.addr());
@@ -193,7 +193,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             None
         }
     }
-    .unwrap();*/
+    .unwrap();
 
     loop {
         x86_64::instructions::hlt();

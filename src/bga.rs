@@ -81,7 +81,7 @@ impl BochsGraphicsAdapter {
     let was_enabled = self.read_reg(VBE_DISPI_INDEX_ENABLE);
     self.write_reg(VBE_DISPI_INDEX_ENABLE, was_enabled | VBE_DISPI_GETCAPS);
     let cap = self.read_reg(index);
-    print!("{}", ""); // FIXME: Investigate issue. It returns 0 without this print with the format! needing to be used
+    assert!(cap != 0); // Someone, if you can find why this is needed, please tell me. I'm desperate
     self.write_reg(VBE_DISPI_INDEX_ENABLE, was_enabled);
     cap
   }
