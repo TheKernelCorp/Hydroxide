@@ -1,13 +1,6 @@
-use bootloader::bootinfo::{
-  BootInfo,
-  FrameRange,
-  MemoryMap,
-  MemoryRegion,
-  MemoryRegionType
-};
+use bootloader::bootinfo::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use lazy_static::lazy_static;
 use spin::Mutex;
-use core::cell::RefCell;
 
 use x86_64::{
   structures::paging::{
@@ -16,8 +9,6 @@ use x86_64::{
   },
   PhysAddr,
 };
-
-use core::ptr::Unique;
 
 pub struct Allocator {
   pub memory_map: &'static mut MemoryMap,
@@ -164,12 +155,10 @@ impl<'a> FrameAllocator<Size4KiB> for Allocator {
 }
 
 lazy_static! {
-  static ref PAGING: Mutex<Paging> = Mutex::new(
-    Paging {
-      allocator: None,
-      page_table: None,
-    }
-  );
+  pub static ref PAGING: Mutex<Paging> = Mutex::new(Paging {
+    allocator: None,
+    page_table: None,
+  });
 }
 
 pub struct Paging {
@@ -183,9 +172,7 @@ impl Paging {
     let page_table = Some(RecursivePageTable::new(unsafe { &mut *table }).unwrap());
     let mmap: &'static mut MemoryMap = &mut info.memory_map;
     let paging: &mut Paging = &mut *PAGING.lock();
-    paging.allocator = Some(Allocator {
-      memory_map: mmap,
-    });
+    paging.allocator = Some(Allocator { memory_map: mmap });
     paging.page_table = page_table;
   }
 
@@ -205,10 +192,7 @@ impl Paging {
           PhysFrame::from_start_address(end).unwrap(),
         );
         for frame in range {
-          table
-            .identity_map(frame, flags, alloc)
-            .unwrap()
-            .flush();
+          table.identity_map(frame, flags, alloc).unwrap().flush();
         }
       }
       true => {
@@ -217,10 +201,7 @@ impl Paging {
           PhysFrame::from_start_address(end).unwrap(),
         );
         for frame in range {
-          table
-            .identity_map(frame, flags, alloc)
-            .unwrap()
-            .flush();
+          table.identity_map(frame, flags, alloc).unwrap().flush();
         }
       }
     };

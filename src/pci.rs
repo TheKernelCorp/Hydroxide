@@ -1,7 +1,9 @@
 use core::convert::From;
 use lazy_static::lazy_static;
 use spin::Mutex;
-use x86_64::instructions::port::Port;
+use x86_64::{instructions::port::Port, structures::paging::PageTableFlags, PhysAddr};
+
+use crate::paging::PAGING;
 
 const CONFIG_ADDRESS: u16 = 0xCF8;
 const CONFIG_DATA: u16 = 0xCFC;
@@ -353,6 +355,24 @@ impl PCIBAR {
   fn is_mmio(&self) -> bool {
     self.is_16bit() || self.is_32bit() || self.is_64bit()
   }
+
+  fn identity_map(&self) -> Result<(), &'static str> {
+    if !self.is_mmio() {
+      return Err("BAR is not mmio");
+    }
+
+    let addr = self.addr();
+    let size = self.size();
+
+    PAGING.lock().identity_map(
+      PhysAddr::new(addr),
+      PhysAddr::new(addr + size),
+      PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+      false,
+    );
+
+    Ok(())
+  }
 }
 
 pub fn tmp_init_devs() {
@@ -360,15 +380,42 @@ pub fn tmp_init_devs() {
 
   match bge_dev {
     Some(dev) => {
-      const VBE_DISPI_INDEX_ID: u16 = 0;
+      const VBE_DISPI_GETCAPS: u16 = 2;
       const VBE_DISPI_NUM_REGISTERS: u16 = 10;
+
+      const VBE_DISPI_INDEX_ID: u16 = 0;
+      const VBE_DISPI_INDEX_XRES: u16 = 1;
+      const VBE_DISPI_INDEX_YRES: u16 = 2;
+      const VBE_DISPI_INDEX_BPP: u16 = 3;
+      const VBE_DISPI_INDEX_ENABLE: u16 = 4;
+
       fn read_reg(mmio: u64, index: u16) -> u16 {
         use core::ptr::Unique;
-        println!("a");
         assert!(index < VBE_DISPI_NUM_REGISTERS);
         let regs: Unique<[u16; VBE_DISPI_NUM_REGISTERS as usize]> =
-          Unique::new((mmio) as *mut _).unwrap();
+          Unique::new((mmio + 0x500) as *mut _).unwrap();
         unsafe { regs.as_ref()[index as usize] }
+      }
+
+      fn write_reg(mmio: u64, index: u16, val: u16) {
+        use core::ptr::Unique;
+        assert!(index < VBE_DISPI_NUM_REGISTERS);
+        let mut regs: Unique<[u16; VBE_DISPI_NUM_REGISTERS as usize]> =
+          Unique::new((mmio + 0x500) as *mut _).unwrap();
+        unsafe { regs.as_mut()[index as usize] = val };
+      }
+
+      fn get_capability(mmio: u64, index: u16) -> u16 {
+        let was_enabled = read_reg(mmio, VBE_DISPI_INDEX_ENABLE);
+        print!("{}", ""); // FIXME: Investigate issue. It returns 0 without this print with the format! needing to bee used
+        write_reg(
+          mmio,
+          VBE_DISPI_INDEX_ENABLE,
+          was_enabled | VBE_DISPI_GETCAPS,
+        );
+        let cap = read_reg(mmio, index);
+        write_reg(mmio, VBE_DISPI_INDEX_ENABLE, was_enabled);
+        return cap;
       }
 
       println!("[BGE Adapter @ 0x{:08x}] Found", u32::from(dev.address));
@@ -379,6 +426,7 @@ pub fn tmp_init_devs() {
         fb_bar.addr()
       );
       let mmio_bar = dev.get_bar(2);
+      mmio_bar.identity_map();
       if mmio_bar.is_mmio() {
         println!(
           "[BGE Adapter @ 0x{:08x}] MMIO BAR: 0x{:08x}",
@@ -386,11 +434,28 @@ pub fn tmp_init_devs() {
           mmio_bar.addr()
         );
       }
-      let version = read_reg(mmio_bar.addr(), VBE_DISPI_INDEX_ID);
       println!(
         "[BGE Adapter @ 0x{:08x}] Version: 0x{:04x}",
         u32::from(dev.address),
-        version
+        read_reg(mmio_bar.addr(), VBE_DISPI_INDEX_ID)
+      );
+      let bpp = get_capability(mmio_bar.addr(), VBE_DISPI_INDEX_BPP);
+      let width = get_capability(mmio_bar.addr(), VBE_DISPI_INDEX_XRES);
+      let height = get_capability(mmio_bar.addr(), VBE_DISPI_INDEX_YRES);
+      println!(
+        "[BGE Adapter @ 0x{:08x}] Max BPP: {}",
+        u32::from(dev.address),
+        bpp
+      );
+      println!(
+        "[BGE Adapter @ 0x{:08x}] Max Width: {}",
+        u32::from(dev.address),
+        width
+      );
+      println!(
+        "[BGE Adapter @ 0x{:08x}] Max Height: {}",
+        u32::from(dev.address),
+        height
       );
     }
     None => println!("[BGE Adapter] Not found"),
