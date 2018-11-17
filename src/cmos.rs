@@ -170,7 +170,7 @@ impl core::fmt::Display for CMOSDateTime {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(
             f,
-            "{year}-{month}-{day} {hour}:{minute}:{second}",
+            "{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}",
             year = self.year,
             month = self.month,
             day = self.day_of_month,
@@ -185,7 +185,7 @@ impl core::fmt::Display for CMOSDate {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(
             f,
-            "{year}-{month}-{day}",
+            "{year:04}-{month:02}-{day:02}",
             year = self.year,
             month = self.month,
             day = self.day_of_month,
@@ -197,7 +197,7 @@ impl core::fmt::Display for CMOSTime {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(
             f,
-            "{hour}:{minute}:{second}",
+            "{hour:02}:{minute:02}:{second:02}",
             hour = self.hour,
             minute = self.minute,
             second = self.second

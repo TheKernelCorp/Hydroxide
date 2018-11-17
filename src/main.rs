@@ -175,9 +175,16 @@ pub extern "C" fn _start() -> ! {
     // Initialize the PS/2 keyboard
     PS2Keyboard::init();
 
+    // Print the current date and time
+    let datetime = CMOS::read_date_time();
+    println!(
+        "The date is {date}, the time is {time}.",
+        date = datetime.as_date(),
+        time = datetime.as_time(),
+    );
+
     // Say hello
     println!("Hello from Hydroxide.");
-    println!("{}", CMOS::read_date_time());
 
     // Idle
     loop {
