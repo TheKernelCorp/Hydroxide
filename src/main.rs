@@ -147,10 +147,10 @@ use self::paging::Paging;
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]
-pub extern "C" fn _start(mut bootinfo: &'static mut BootInfo) -> ! {
+pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     GDT::init();
     IDT::init();
-    Paging::init(&mut bootinfo);
+    Paging::init(bootinfo);
     PIC8259::init();
     x86_64::instructions::interrupts::enable();
     PS2Keyboard::init();

@@ -1,7 +1,12 @@
-use bootloader::bootinfo::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
-
+use bootloader::bootinfo::{
+  BootInfo,
+  FrameRange,
+  MemoryMap,
+  MemoryRegion,
+  MemoryRegionType
+};
 use lazy_static::lazy_static;
-
+use spin::Mutex;
 use core::cell::RefCell;
 
 use x86_64::{
@@ -14,11 +19,11 @@ use x86_64::{
 
 use core::ptr::Unique;
 
-pub struct Allocator<'a> {
-  pub memory_map: &'a mut MemoryMap,
+pub struct Allocator {
+  pub memory_map: &'static mut MemoryMap,
 }
 
-impl<'a> Allocator<'a> {
+impl Allocator {
   fn phys_range(range: FrameRange) -> PhysFrameRange {
     PhysFrameRange {
       start: PhysFrame::from_start_address(PhysAddr::new(range.start_addr())).unwrap(),
@@ -152,35 +157,36 @@ impl<'a> Allocator<'a> {
   }
 }
 
-impl<'a> FrameAllocator<Size4KiB> for Allocator<'a> {
+impl<'a> FrameAllocator<Size4KiB> for Allocator {
   fn alloc(&mut self) -> Option<PhysFrame<Size4KiB>> {
     self.allocate_frame(MemoryRegionType::PageTable)
   }
 }
 
 lazy_static! {
-  static ref PAGING: Paging<'static> = {
+  static ref PAGING: Mutex<Paging> = Mutex::new(
     Paging {
       allocator: None,
       page_table: None,
     }
-  };
+  );
 }
 
-pub struct Paging<'a> {
-  allocator: Option<Allocator<'a>>,
-  page_table: Option<RecursivePageTable<'a>>,
+pub struct Paging {
+  allocator: Option<Allocator>,
+  page_table: Option<RecursivePageTable<'static>>,
 }
 
-impl Paging<'static> {
+impl Paging {
   pub fn init(info: &'static mut BootInfo) {
     let table = info.p4_table_addr as *mut PageTable;
     let page_table = Some(RecursivePageTable::new(unsafe { &mut *table }).unwrap());
-
-    PAGING.allocator = Some(Allocator {
-      memory_map: &mut info.memory_map,
+    let mmap: &'static mut MemoryMap = &mut info.memory_map;
+    let paging: &mut Paging = &mut *PAGING.lock();
+    paging.allocator = Some(Allocator {
+      memory_map: mmap,
     });
-    PAGING.page_table = page_table;
+    paging.page_table = page_table;
   }
 
   pub fn identity_map(
@@ -190,8 +196,8 @@ impl Paging<'static> {
     flags: PageTableFlags,
     inclusive: bool,
   ) {
-    let mut table = self.page_table.unwrap();
-    let mut alloc = self.allocator.unwrap();
+    let mut table = self.page_table.as_mut().unwrap();
+    let mut alloc = self.allocator.as_mut().unwrap();
     match inclusive {
       false => {
         let range = PhysFrame::<Size4KiB>::range(
@@ -200,7 +206,7 @@ impl Paging<'static> {
         );
         for frame in range {
           table
-            .identity_map(frame, flags, &mut alloc)
+            .identity_map(frame, flags, alloc)
             .unwrap()
             .flush();
         }
@@ -212,7 +218,7 @@ impl Paging<'static> {
         );
         for frame in range {
           table
-            .identity_map(frame, flags, &mut alloc)
+            .identity_map(frame, flags, alloc)
             .unwrap()
             .flush();
         }
