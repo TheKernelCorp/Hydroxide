@@ -70,6 +70,7 @@ extern crate spin;
 extern crate pic8259_simple;
 extern crate linked_list_allocator;
 extern crate pc_keyboard;
+extern crate bitflags;
 
 //
 //
@@ -143,6 +144,13 @@ mod kbc;
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
 
+// CMOS
+mod cmos;
+use self::cmos::{
+    CMOS,
+    POSTData,
+};
+
 //
 //
 // Main entry point
@@ -152,17 +160,52 @@ use self::ps2kbd::PS2Keyboard;
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub extern "C" fn _start() -> ! {
+
+    // Get basics up and running
     GDT::init();
     IDT::init();
     PIC8259::init();
-    x86_64::instructions::interrupts::enable(); // sti
+
+    // Print POST status
+    print_post_status();
+
+    // Enable interrupts
+    x86_64::instructions::interrupts::enable();
+
+    // Initialize the PS/2 keyboard
     PS2Keyboard::init();
-    // x86_64::instructions::int3();
-    // panic!("Hue");
+
+    // Print the current date and time
+    let datetime = CMOS::read_date_time();
+    println!(
+        "The date is {date}, the time is {time}.",
+        date = datetime.as_date(),
+        time = datetime.as_time(),
+    );
+
+    // Say hello
     println!("Hello from Hydroxide.");
+
+    // Idle
     loop {
         x86_64::instructions::hlt(); // hlt
     }
+}
+
+fn print_post_status() {
+    match CMOS::read_post_data() {
+        Some(data) => {
+            println!("[post] power supply status: {}", data.power_supply_status());
+            println!("[post] cmos checksum status: {}", data.cmos_checksum_status());
+            println!("[post] cmos config matches: {}", data.configuration_match_status());
+            println!("[post] cmos memory amount matches: {}", data.memory_match_status());
+            println!("[post] drive health status: {}", data.drive_status());
+            println!("[post] time status: {}", data.time_status());
+            println!("[post] adapter init status: {}", data.adapter_init_status());
+            println!("[post] adapter status: {}", data.adapter_status());
+        },
+        None => println!("[post] unable to fetch POST information."),
+    };
 }
 
 //
