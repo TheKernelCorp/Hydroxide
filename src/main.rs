@@ -73,7 +73,7 @@ extern crate x86_64;
 //
 //
 
-use bootloader::bootinfo::BootInfo;
+use bootloader::bootinfo::{BootInfo, MemoryMap, MemoryRegion, MemoryRegionType};
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
@@ -142,6 +142,9 @@ mod pci;
 mod paging;
 use self::paging::Paging;
 
+mod bga;
+use self::bga::BochsGraphicsAdapter;
+
 //
 //
 // Main entry point
@@ -153,6 +156,7 @@ use self::paging::Paging;
 pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     GDT::init();
     IDT::init();
+
     Paging::init(bootinfo);
     PIC8259::init();
     x86_64::instructions::interrupts::enable();
@@ -160,7 +164,30 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     println!("Hello from Hydroxide.");
 
-    pci::tmp_init_devs();
+    /*let bga = match BochsGraphicsAdapter::detect() {
+        Ok(device) => {
+            let dev = BochsGraphicsAdapter::new(&device).init();
+            println!("[BGA @ 0x{:08x}] Found", dev.addr());
+            println!(
+                "[BGA @ 0x{:08x}] Version: 0x{:04x}",
+                dev.addr(),
+                dev.version()
+            );
+            println!("[BGA @ 0x{:08x}] Max BPP: {}", dev.addr(), dev.max_bpp);
+            println!("[BGA @ 0x{:08x}] Max Width: {}", dev.addr(), dev.max_width);
+            println!(
+                "[BGA @ 0x{:08x}] Max Height: {}",
+                dev.addr(),
+                dev.max_height
+            );
+            Some(dev)
+        }
+        Err(err) => {
+            println!("{}", err);
+            None
+        }
+    }
+    .unwrap();*/
 
     loop {
         x86_64::instructions::hlt();

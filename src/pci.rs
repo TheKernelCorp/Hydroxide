@@ -23,7 +23,7 @@ const PCIFIELD_HHEADER_TYPE: u8 = 0x0E;
 const PCIFIELD_SECONDARY_BUS_NUMBER: u8 = 0x19;
 
 #[derive(Clone, Copy)]
-struct PCIDeviceAddress {
+pub struct PCIDeviceAddress {
   bus: u8,
   slot: u8,
   func: u8,
@@ -79,7 +79,7 @@ pub struct PCIFind {
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-struct PCIDeviceType {
+pub struct PCIDeviceType {
   class_id: u8,
   subclass_id: u8,
   prog_if: u8,
@@ -132,14 +132,14 @@ impl PCIFind {
 }
 
 #[derive(Clone, Copy)]
-struct PCIDevice {
-  address: PCIDeviceAddress,
+pub struct PCIDevice {
+  pub address: PCIDeviceAddress,
   id: PCIDeviceID,
   dev_type: PCIDeviceType,
 }
 
 impl PCIDevice {
-  unsafe fn pci_read32(address: &PCIDeviceAddress, offset: u8) -> u32 {
+  pub unsafe fn pci_read32(address: &PCIDeviceAddress, offset: u8) -> u32 {
     assert!(offset & 0x3 == 0);
     PCI_CONFIG_ADDRESS
       .lock()
@@ -147,7 +147,7 @@ impl PCIDevice {
     PCI_CONFIG_DATA.lock().read()
   }
 
-  unsafe fn pci_write32(address: &PCIDeviceAddress, offset: u8, val: u32) {
+  pub unsafe fn pci_write32(address: &PCIDeviceAddress, offset: u8, val: u32) {
     assert!(offset & 0x3 == 0);
     PCI_CONFIG_ADDRESS
       .lock()
@@ -155,7 +155,7 @@ impl PCIDevice {
     PCI_CONFIG_DATA.lock().write(val);
   }
 
-  unsafe fn pci_read16(address: &PCIDeviceAddress, offset: u8) -> u16 {
+  pub unsafe fn pci_read16(address: &PCIDeviceAddress, offset: u8) -> u16 {
     assert!(offset & 0x1 == 0);
     let aligned_offset = offset & !0x3;
     let data_raw = PCIDevice::pci_read32(address, aligned_offset);
@@ -164,26 +164,26 @@ impl PCIDevice {
       | ((data.val8[(offset & 0x3) as usize + 1] as u16) << 8)
   }
 
-  unsafe fn pci_read8(address: &PCIDeviceAddress, offset: u8) -> u8 {
+  pub unsafe fn pci_read8(address: &PCIDeviceAddress, offset: u8) -> u8 {
     let aligned_offset = offset & !0x3;
     let data_raw = PCIDevice::pci_read32(address, aligned_offset);
     let data: PCIData = PCIData { val32: data_raw };
     data.val8[(offset & 0x3) as usize]
   }
 
-  fn read8(&self, offset: u8) -> u8 {
+  pub fn read8(&self, offset: u8) -> u8 {
     unsafe { PCIDevice::pci_read8(&self.address, offset) }
   }
 
-  fn read16(&self, offset: u8) -> u16 {
+  pub fn read16(&self, offset: u8) -> u16 {
     unsafe { PCIDevice::pci_read16(&self.address, offset) }
   }
 
-  fn read32(&self, offset: u8) -> u32 {
+  pub fn read32(&self, offset: u8) -> u32 {
     unsafe { PCIDevice::pci_read32(&self.address, offset) }
   }
 
-  fn write32(&self, offset: u8, val: u32) {
+  pub fn write32(&self, offset: u8, val: u32) {
     unsafe { PCIDevice::pci_write32(&self.address, offset, val) }
   }
 
@@ -263,11 +263,11 @@ impl PCIDevice {
     return found_device;
   }
 
-  fn search(find: &PCIFind, last: Option<u32>) -> Option<PCIDevice> {
+  pub fn search(find: &PCIFind, last: Option<u32>) -> Option<PCIDevice> {
     PCIDevice::find_on_bus(0, find, last)
   }
 
-  fn get_bar(&self, bar: u8) -> PCIBAR {
+  pub fn get_bar(&self, bar: u8) -> PCIBAR {
     let lo = self.read32(0x10 + 4 * (bar + 0));
 
     let mut res = PCIBAR {
@@ -311,24 +311,24 @@ const PCIBAR_TYPE_16BIT: u8 = 0x1 << 1 | 0x0 << 0;
 const PCIBAR_TYPE_32BIT: u8 = 0x0 << 1 | 0x0 << 0;
 const PCIBAR_TYPE_64BIT: u8 = 0x2 << 1 | 0x0 << 0;
 
-struct PCIBAR {
+pub struct PCIBAR {
   addr_raw: u64,
   size_raw: u64,
 }
 
 impl PCIBAR {
-  fn addr(&self) -> u64 {
+  pub fn addr(&self) -> u64 {
     match self.is_iospace() {
       true => self.addr_raw & 0xFFFFFFFFFFFFFFFC,
       false => self.addr_raw & 0xFFFFFFFFFFFFFFF0,
     }
   }
 
-  fn size(&self) -> u64 {
+  pub fn size(&self) -> u64 {
     self.size_raw & 0xFFFFFFFFFFFFFFFF
   }
 
-  fn get_type(&self) -> u8 {
+  pub fn get_type(&self) -> u8 {
     let raw = self.addr_raw as u8;
     match raw & 0x3 {
       PCIBAR_TYPE_IOSPACE => raw & 0x3,
@@ -336,27 +336,27 @@ impl PCIBAR {
     }
   }
 
-  fn is_iospace(&self) -> bool {
+  pub fn is_iospace(&self) -> bool {
     self.get_type() == PCIBAR_TYPE_IOSPACE
   }
 
-  fn is_16bit(&self) -> bool {
+  pub fn is_16bit(&self) -> bool {
     self.get_type() == PCIBAR_TYPE_16BIT
   }
 
-  fn is_32bit(&self) -> bool {
+  pub fn is_32bit(&self) -> bool {
     self.get_type() == PCIBAR_TYPE_32BIT
   }
 
-  fn is_64bit(&self) -> bool {
+  pub fn is_64bit(&self) -> bool {
     self.get_type() == PCIBAR_TYPE_64BIT
   }
 
-  fn is_mmio(&self) -> bool {
+  pub fn is_mmio(&self) -> bool {
     self.is_16bit() || self.is_32bit() || self.is_64bit()
   }
 
-  fn identity_map(&self) -> Result<(), &'static str> {
+  pub fn identity_map(&self) -> Result<(), &'static str> {
     if !self.is_mmio() {
       return Err("BAR is not mmio");
     }
@@ -375,7 +375,7 @@ impl PCIBAR {
   }
 }
 
-pub fn tmp_init_devs() {
+/*pub fn tmp_init_devs() {
   let bge_dev = PCIDevice::search(&PCIFind::new(0x1234, 0x1111), None);
 
   match bge_dev {
@@ -407,7 +407,7 @@ pub fn tmp_init_devs() {
 
       fn get_capability(mmio: u64, index: u16) -> u16 {
         let was_enabled = read_reg(mmio, VBE_DISPI_INDEX_ENABLE);
-        print!("{}", ""); // FIXME: Investigate issue. It returns 0 without this print with the format! needing to bee used
+        print!("{}", ""); // FIXME: Investigate issue. It returns 0 without this print with the format! needing to be used
         write_reg(
           mmio,
           VBE_DISPI_INDEX_ENABLE,
@@ -460,4 +460,4 @@ pub fn tmp_init_devs() {
     }
     None => println!("[BGE Adapter] Not found"),
   };
-}
+}*/
