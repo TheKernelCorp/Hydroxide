@@ -70,6 +70,7 @@ extern crate spin;
 extern crate pic8259_simple;
 extern crate linked_list_allocator;
 extern crate pc_keyboard;
+extern crate bitflags;
 
 //
 //
@@ -143,6 +144,13 @@ mod kbc;
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
 
+// CMOS
+mod cmos;
+use self::cmos::{
+    CMOS,
+    POSTData,
+};
+
 //
 //
 // Main entry point
@@ -157,6 +165,25 @@ pub extern "C" fn _start() -> ! {
     PIC8259::init();
     x86_64::instructions::interrupts::enable(); // sti
     PS2Keyboard::init();
+
+    // POST check
+    match CMOS::read_post_data() {
+        Some(data) => {
+            let get_flag_ok = |flag: POSTData| {
+                if !data.contains(flag) { "OK" } else { "ERROR" }
+            };
+            println!("[post] power supply {}", get_flag_ok(POSTData::POWER_SUPPLY));
+            println!("[post] cmos checksum {}", get_flag_ok(POSTData::CMOS_CHECKSUM));
+            println!("[post] cmos configuration {}", get_flag_ok(POSTData::CONFIGURATION_MATCH));
+            println!("[post] cmos memory check {}", get_flag_ok(POSTData::MEMORY_AMOUNT_MATCH));
+            println!("[post] drive health check {}", get_flag_ok(POSTData::DRIVE_FAILURE));
+            println!("[post] time consistency check {}", get_flag_ok(POSTData::TIME_VALIDITY));
+            println!("[post] adapter initialization {}", get_flag_ok(POSTData::ADAPTER_VALIDITY));
+            println!("[post] adapter response time {}", get_flag_ok(POSTData::ADAPTER_TIMEOUT_CHECK));
+        },
+        None => println!("[post] unable to fetch POST information."),
+    };
+
     // x86_64::instructions::int3();
     // panic!("Hue");
     println!("Hello from Hydroxide.");

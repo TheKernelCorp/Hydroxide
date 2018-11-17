@@ -12,6 +12,7 @@ spin = "0.4.10"
 pic8259_simple = "0.1.1"
 linked_list_allocator = "0.6.3"
 pc-keyboard = { git = "https://github.com/thejpster/pc-keyboard" }
+bitflags = "1.0.4"
 
 [package.metadata.bootimage]
 default-target = "x86_64-hydroxide.json"
