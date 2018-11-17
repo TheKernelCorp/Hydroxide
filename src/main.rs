@@ -172,6 +172,7 @@ pub extern "C" fn _start() -> ! {
 //
 
 /// This function is called on panic.
+#[cfg(not(test))]
 #[panic_handler]
 #[allow(clippy::empty_loop)]
 fn panic(info: &PanicInfo) -> ! {
@@ -191,6 +192,7 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 /// This function is called on allocation error.
+#[cfg(not(test))]
 #[alloc_error_handler]
 #[no_mangle]
 pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
