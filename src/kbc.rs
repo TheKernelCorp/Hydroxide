@@ -23,21 +23,56 @@ lazy_static! {
 pub struct KBC;
 impl KBC {
 
-    // Reset the CPU
+    /// Wait for the KBC to become ready
+    pub unsafe fn wait_ready() {
+        KBC::with_ports(|data, status| {
+            while status.read() & 0x02 != 0 {
+                data.read(); // discard
+            }
+        });
+    }
+
+    /// Read the keyboard data port
+    pub unsafe fn read_byte() -> u8 {
+        KBC::wait_ready();
+        KBC::with_ports(|data, _| data.read())
+    }
+
+    /// Write a byte to the keyboard data port
+    pub unsafe fn write_byte(com: u8) {
+        KBC::wait_ready();
+        KBC::with_ports_mut(|data, _| data.write(com));
+    }
+
+    /// Provide a closure with read-only access to KBC ports
+    pub fn with_ports<F, R>(f: F) -> R
+        where F: Fn(&Port<u8>, &Port<u8>) -> R {
+
+        // Lock ports
+        let data_port = &*KBC_DATA_PORT.lock();
+        let status_port = &*KBC_STATUS_PORT.lock();
+
+        // Call closure
+        f(data_port, status_port)
+    }
+
+    /// Provide a closure with read-write access to KBC ports
+    pub fn with_ports_mut<F, R>(mut f: F) -> R
+        where F: FnMut(&mut Port<u8>, &mut Port<u8>) -> R {
+
+        // Lock ports
+        let data_port = &mut *KBC_DATA_PORT.lock();
+        let status_port = &mut *KBC_STATUS_PORT.lock();
+
+        // Call closure
+        f(data_port, status_port)
+    }
+
+    /// Reset the CPU
     pub unsafe fn reset_cpu() {
-
-        // Lock the data port
-        let data_port = KBC_DATA_PORT.lock();
-
-        // Lock the status port
-        let mut status_port = KBC_STATUS_PORT.lock();
-
-        // Wait for the KBC to become ready
-        while status_port.read() & 0x02 != 0 {
-            data_port.read(); // discard
-        }
+        KBC::wait_ready();
 
         // 0xF0 | 0x0E => Pulse line 0 for CPU reset
-        status_port.write(0xFE);
+        KBC::with_ports_mut(|_, status| status.write(0xFE));
     }
 }

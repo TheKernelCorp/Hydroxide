@@ -135,13 +135,12 @@ mod pit;
 // VGA Terminal Screen Buffer
 mod vgaterm;
 
+// Keyboard Controller
+mod kbc;
+
 // Generic PS/2 Keyboard
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
-
-// Keyboard Controller
-mod kbc;
-use self::kbc::KBC;
 
 //
 //
