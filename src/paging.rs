@@ -1,13 +1,6 @@
-use bootloader::bootinfo::{
-  BootInfo,
-  FrameRange,
-  MemoryMap,
-  MemoryRegion,
-  MemoryRegionType
-};
+use bootloader::bootinfo::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use lazy_static::lazy_static;
 use spin::Mutex;
-use core::cell::RefCell;
 
 use x86_64::{
   structures::paging::{
@@ -16,8 +9,6 @@ use x86_64::{
   },
   PhysAddr,
 };
-
-use core::ptr::Unique;
 
 pub struct Allocator {
   pub memory_map: &'static mut MemoryMap,
@@ -97,6 +88,7 @@ impl Allocator {
   /// Marks the passed region in the memory map.
   ///
   /// Panics if a non-usable region (e.g. a reserved region) overlaps with the passed region.
+  #[allow(dead_code)]
   pub fn mark_allocated_region(&mut self, region: MemoryRegion) {
     for r in self.memory_map.iter_mut() {
       if region.range.start_frame_number >= r.range.end_frame_number {
@@ -164,12 +156,10 @@ impl<'a> FrameAllocator<Size4KiB> for Allocator {
 }
 
 lazy_static! {
-  static ref PAGING: Mutex<Paging> = Mutex::new(
-    Paging {
-      allocator: None,
-      page_table: None,
-    }
-  );
+  pub static ref PAGING: Mutex<Paging> = Mutex::new(Paging {
+    allocator: None,
+    page_table: None,
+  });
 }
 
 pub struct Paging {
@@ -183,9 +173,7 @@ impl Paging {
     let page_table = Some(RecursivePageTable::new(unsafe { &mut *table }).unwrap());
     let mmap: &'static mut MemoryMap = &mut info.memory_map;
     let paging: &mut Paging = &mut *PAGING.lock();
-    paging.allocator = Some(Allocator {
-      memory_map: mmap,
-    });
+    paging.allocator = Some(Allocator { memory_map: mmap });
     paging.page_table = page_table;
   }
 
@@ -196,8 +184,8 @@ impl Paging {
     flags: PageTableFlags,
     inclusive: bool,
   ) {
-    let mut table = self.page_table.as_mut().unwrap();
-    let mut alloc = self.allocator.as_mut().unwrap();
+    let table = self.page_table.as_mut().unwrap();
+    let alloc = self.allocator.as_mut().unwrap();
     match inclusive {
       false => {
         let range = PhysFrame::<Size4KiB>::range(
@@ -205,10 +193,7 @@ impl Paging {
           PhysFrame::from_start_address(end).unwrap(),
         );
         for frame in range {
-          table
-            .identity_map(frame, flags, alloc)
-            .unwrap()
-            .flush();
+          table.identity_map(frame, flags, alloc).unwrap().flush();
         }
       }
       true => {
@@ -217,10 +202,7 @@ impl Paging {
           PhysFrame::from_start_address(end).unwrap(),
         );
         for frame in range {
-          table
-            .identity_map(frame, flags, alloc)
-            .unwrap()
-            .flush();
+          table.identity_map(frame, flags, alloc).unwrap().flush();
         }
       }
     };
