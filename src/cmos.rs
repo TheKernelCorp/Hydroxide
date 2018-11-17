@@ -11,17 +11,110 @@ lazy_static! {
     static ref CMOS_PORT_DATA: Mutex<Port<u8>> = Mutex::new(Port::new(CMOS_DATA));
 }
 
-bitflags! {
-    pub struct POSTData: u8 {
-        const ADAPTER_TIMEOUT_CHECK = 0b00000001;
-        const ADAPTER_VALIDITY      = 0b00000010;
-        const TIME_VALIDITY         = 0b00000100;
-        const DRIVE_FAILURE         = 0b00001000;
-        const MEMORY_AMOUNT_MATCH   = 0b00010000;
-        const CONFIGURATION_MATCH   = 0b00100000;
-        const CMOS_CHECKSUM         = 0b01000000;
-        const POWER_SUPPLY          = 0b10000000;
+/// POST status bit result
+pub enum POSTResult {
+    Ok,
+    Fail,
+    Yes,
+    No,
+}
+
+impl core::fmt::Display for POSTResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let s = match *self {
+            POSTResult::Ok => "OK",
+            POSTResult::Fail => "FAIL",
+            POSTResult::Yes => "Y",
+            POSTResult::No => "N",
+        };
+        write!(f, "{}", s)
     }
+}
+
+bitflags! {
+
+    /// POST status data
+    pub struct POSTData: u8 {
+        const ADAPTER_TIMEOUT_CHECK = 0b_0000_0001;
+        const ADAPTER_VALIDITY      = 0b_0000_0010;
+        const TIME_VALIDITY         = 0b_0000_0100;
+        const DRIVE_FAILURE         = 0b_0000_1000;
+        const MEMORY_AMOUNT_MATCH   = 0b_0001_0000;
+        const CONFIGURATION_MATCH   = 0b_0010_0000;
+        const CMOS_CHECKSUM         = 0b_0100_0000;
+        const POWER_SUPPLY          = 0b_1000_0000;
+    }
+}
+
+macro_rules! impl_post_status {
+    (fn $name:ident <- $testfor:expr, [0 => $cond_zero:expr, 1 => $cond_one:expr]) => {
+        pub fn $name(&self) -> POSTResult {
+            if self.contains($testfor) {
+                $cond_one
+            } else {
+                $cond_zero
+            }
+        }
+    };
+}
+
+impl POSTData {
+
+    impl_post_status!(
+        fn adapter_status <- Self::ADAPTER_TIMEOUT_CHECK, [
+            0 => POSTResult::Ok,
+            1 => POSTResult::Fail
+        ]
+    );
+
+    impl_post_status!(
+        fn adapter_init_status <- Self::ADAPTER_VALIDITY, [
+            0 => POSTResult::Ok,
+            1 => POSTResult::Fail
+        ]
+    );
+
+    impl_post_status!(
+        fn time_status <- Self::TIME_VALIDITY, [
+            0 => POSTResult::Ok,
+            1 => POSTResult::Fail
+        ]
+    );
+
+    impl_post_status!(
+        fn drive_status <- Self::DRIVE_FAILURE, [
+            0 => POSTResult::Ok,
+            1 => POSTResult::Fail
+        ]
+    );
+
+    impl_post_status!(
+        fn memory_match_status <- Self::MEMORY_AMOUNT_MATCH, [
+            0 => POSTResult::Yes,
+            1 => POSTResult::No
+        ]
+    );
+
+    impl_post_status!(
+        fn configuration_match_status <- Self::CONFIGURATION_MATCH, [
+            0 => POSTResult::Yes,
+            1 => POSTResult::No
+        ]
+    );
+
+    impl_post_status!(
+        fn cmos_checksum_status <- Self::CMOS_CHECKSUM, [
+            0 => POSTResult::Ok,
+            1 => POSTResult::Fail
+        ]
+    );
+
+    impl_post_status!(
+        fn power_supply_status <- Self::POWER_SUPPLY, [
+            0 => POSTResult::Ok,
+            1 => POSTResult::Fail
+        ]
+    );
 }
 
 pub struct CMOS;

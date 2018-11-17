@@ -160,36 +160,44 @@ use self::cmos::{
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub extern "C" fn _start() -> ! {
+
+    // Get basics up and running
     GDT::init();
     IDT::init();
     PIC8259::init();
-    x86_64::instructions::interrupts::enable(); // sti
+
+    // Print POST status
+    print_post_status();
+
+    // Enable interrupts
+    x86_64::instructions::interrupts::enable();
+
+    // Initialize the PS/2 keyboard
     PS2Keyboard::init();
 
-    // POST check
-    match CMOS::read_post_data() {
-        Some(data) => {
-            let get_flag_ok = |flag: POSTData| {
-                if !data.contains(flag) { "OK" } else { "ERROR" }
-            };
-            println!("[post] power supply {}", get_flag_ok(POSTData::POWER_SUPPLY));
-            println!("[post] cmos checksum {}", get_flag_ok(POSTData::CMOS_CHECKSUM));
-            println!("[post] cmos configuration {}", get_flag_ok(POSTData::CONFIGURATION_MATCH));
-            println!("[post] cmos memory check {}", get_flag_ok(POSTData::MEMORY_AMOUNT_MATCH));
-            println!("[post] drive health check {}", get_flag_ok(POSTData::DRIVE_FAILURE));
-            println!("[post] time consistency check {}", get_flag_ok(POSTData::TIME_VALIDITY));
-            println!("[post] adapter initialization {}", get_flag_ok(POSTData::ADAPTER_VALIDITY));
-            println!("[post] adapter response time {}", get_flag_ok(POSTData::ADAPTER_TIMEOUT_CHECK));
-        },
-        None => println!("[post] unable to fetch POST information."),
-    };
-
-    // x86_64::instructions::int3();
-    // panic!("Hue");
+    // Say hello
     println!("Hello from Hydroxide.");
+
+    // Idle
     loop {
         x86_64::instructions::hlt(); // hlt
     }
+}
+
+fn print_post_status() {
+    match CMOS::read_post_data() {
+        Some(data) => {
+            println!("[post] power supply status: {}", data.power_supply_status());
+            println!("[post] cmos checksum status: {}", data.cmos_checksum_status());
+            println!("[post] cmos config matches: {}", data.configuration_match_status());
+            println!("[post] cmos memory amount matches: {}", data.memory_match_status());
+            println!("[post] drive health status: {}", data.drive_status());
+            println!("[post] time status: {}", data.time_status());
+            println!("[post] adapter init status: {}", data.adapter_init_status());
+            println!("[post] adapter status: {}", data.adapter_status());
+        },
+        None => println!("[post] unable to fetch POST information."),
+    };
 }
 
 //
