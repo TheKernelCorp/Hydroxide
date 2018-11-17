@@ -60,14 +60,20 @@
 // imports are not there.
 //
 
+extern crate bootloader;
 extern crate linked_list_allocator;
 extern crate pc_keyboard;
+extern crate pic8259_simple;
+extern crate spin;
+extern crate x86_64;
 
 //
 //
 // Import structures
 //
 //
+
+use bootloader::bootinfo::BootInfo;
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
@@ -133,6 +139,9 @@ use self::ps2kbd::PS2Keyboard;
 
 mod pci;
 
+mod paging;
+use self::paging::Paging;
+
 //
 //
 // Main entry point
@@ -141,20 +150,20 @@ mod pci;
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     GDT::init();
     IDT::init();
+    Paging::init(bootinfo);
     PIC8259::init();
-    x86_64::instructions::interrupts::enable(); // sti
+    x86_64::instructions::interrupts::enable();
     PS2Keyboard::init();
-    // x86_64::instructions::int3();
-    // panic!("Hue");
+
     println!("Hello from Hydroxide.");
 
     pci::tmp_init_devs();
 
     loop {
-        x86_64::instructions::hlt(); // hlt
+        x86_64::instructions::hlt();
     }
 }
 
