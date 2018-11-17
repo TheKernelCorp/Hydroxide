@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use x86_64::structures::idt::ExceptionStackFrame;
-use x86_64::instructions::port::Port;
 use spin::Mutex;
 use lazy_static::lazy_static;
 use pc_keyboard::{

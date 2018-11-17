@@ -137,7 +137,6 @@ mod vgaterm;
 
 // Keyboard Controller
 mod kbc;
-use self::kbc::KBC;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
