@@ -245,7 +245,7 @@ impl CMOS {
     }
 
     /// Read a byte from the CMOS
-    pub unsafe fn read(offset: u8) -> u8 {
+    unsafe fn read(offset: u8) -> u8 {
         CMOS::with_ports_mut(|addr, data| {
             let tmp = addr.read();
             addr.write((tmp & 0x80) | (offset & 0x7F));
@@ -254,7 +254,7 @@ impl CMOS {
     }
 
     /// Write a byte to the CMOS
-    pub unsafe fn write(offset: u8, value: u8) {
+    unsafe fn write(offset: u8, value: u8) {
         CMOS::with_ports_mut(|addr, data| {
             let tmp = addr.read();
             addr.write((tmp & 0x80) | (offset & 0x7F));
@@ -263,7 +263,7 @@ impl CMOS {
     }
 
     /// Provide a closure with read-only access to CMOS ports
-    pub fn with_ports<F, R>(f: F) -> R
+    fn with_ports<F, R>(f: F) -> R
         where F: Fn(&Port<u8>, &Port<u8>) -> R {
 
         // Lock ports
