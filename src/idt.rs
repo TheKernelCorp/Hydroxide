@@ -1,8 +1,5 @@
 use lazy_static::lazy_static;
-use x86_64::structures::idt::{
-    InterruptDescriptorTable,
-    ExceptionStackFrame
-};
+use x86_64::structures::idt::{ExceptionStackFrame, InterruptDescriptorTable};
 
 //
 // Constants
@@ -32,10 +29,8 @@ lazy_static! {
 /// Interrupt Descriptor Table
 pub struct IDT;
 impl IDT {
-
     /// Initialize the IDT
     pub fn init() {
-
         // Load the IDT
         STATIC_IDT.load();
     }
@@ -45,6 +40,13 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut ExceptionStackFra
     println!("*** BREAKPOINT EXCEPTION\n{:#?}", stack_frame);
 }
 
-extern "x86-interrupt" fn double_fault_handler(stack_frame: &mut ExceptionStackFrame, error_code: u64) {
-    println!("*** DOUBLE FAULT EXCEPTION\n{:#?}\nCODE: {:x}", stack_frame, error_code);
+extern "x86-interrupt" fn double_fault_handler(
+    stack_frame: &mut ExceptionStackFrame,
+    error_code: u64,
+) {
+    println!(
+        "*** DOUBLE FAULT EXCEPTION\n{:#?}\nCODE: {:x}",
+        stack_frame, error_code
+    );
+    loop {}
 }

@@ -6,7 +6,6 @@
 // environment without std support.
 //
 #![no_std]
-
 //
 // no_main
 //
@@ -14,7 +13,6 @@
 // not being a main function.
 //
 #![no_main]
-
 //
 // Enable features
 //
@@ -27,7 +25,6 @@
 // to resort to naked function trickery.
 //
 #![feature(abi_x86_interrupt)]
-
 //
 // Enable pointer internals
 //
@@ -36,7 +33,6 @@
 // Unique pointer support.
 //
 #![feature(ptr_internals)]
-
 //
 // Enable allocation error handlers
 //
@@ -44,7 +40,6 @@
 // with a custom memory allocator.
 //
 #![feature(alloc_error_handler)]
-
 //
 // Enable panic info messages
 //
@@ -65,16 +60,19 @@
 // imports are not there.
 //
 
-extern crate x86_64;
-extern crate spin;
-extern crate pic8259_simple;
+extern crate bootloader;
 extern crate linked_list_allocator;
+extern crate pic8259_simple;
+extern crate spin;
+extern crate x86_64;
 
 //
 //
 // Import structures
 //
 //
+
+use bootloader::bootinfo::BootInfo;
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
@@ -138,6 +136,9 @@ mod vgaterm;
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
 
+mod paging;
+use self::paging::Paging;
+
 //
 //
 // Main entry point
@@ -146,17 +147,17 @@ use self::ps2kbd::PS2Keyboard;
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start(mut bootinfo: &'static mut BootInfo) -> ! {
     GDT::init();
     IDT::init();
+    Paging::init(&mut bootinfo);
     PIC8259::init();
-    x86_64::instructions::interrupts::enable(); // sti
+    x86_64::instructions::interrupts::enable();
     PS2Keyboard::init();
-    // x86_64::instructions::int3();
-    // panic!("Hue");
+
     println!("Hello from Hydroxide.");
     loop {
-        x86_64::instructions::hlt(); // hlt
+        x86_64::instructions::hlt();
     }
 }
 
