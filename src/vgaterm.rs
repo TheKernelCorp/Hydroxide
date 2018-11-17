@@ -19,7 +19,7 @@ macro_rules! color {
 }
 
 macro_rules! chattr {
-    ($b:expr, $c:expr) => (($c as u16) << 8 | ($b as u16));
+    ($b:expr, $c:expr) => (u16::from($c) << 8 | u16::from($b));
 }
 
 macro_rules! offset {
@@ -51,6 +51,7 @@ impl TerminalDevice {
     pub fn clear(&mut self) {
         let chr = chattr!(b' ', self.color);
         let buf = unsafe { self.buf.as_mut() };
+        #[allow(clippy::needless_range_loop)]
         for i in 0..VGA_SIZE {
             buf[i] = chr;
         }
