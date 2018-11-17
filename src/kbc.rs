@@ -33,13 +33,13 @@ impl KBC {
     }
 
     /// Read the keyboard data port
-    unsafe fn read_byte() -> u8 {
+    pub unsafe fn read_byte() -> u8 {
         KBC::wait_ready();
         KBC::with_ports(|data, _| data.read())
     }
 
-    /// Send a byte to the keyboard data port
-    unsafe fn send_byte(com: u8) {
+    /// Write a byte to the keyboard data port
+    pub unsafe fn write_byte(com: u8) {
         KBC::wait_ready();
         KBC::with_ports_mut(|data, _| data.write(com));
     }
