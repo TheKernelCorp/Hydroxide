@@ -123,18 +123,19 @@ use self::gdt::GDT;
 mod idt;
 use self::idt::IDT;
 
-// Programmable Interrupt Controller
 // Intel 8259
+// Programmable Interrupt Controller
 mod pic;
 use self::pic::PIC8259;
 
-// Programmable Interrupt Timer
 // Intel 825x
+// Programmable Interrupt Timer
 mod pit;
 
 // VGA Terminal Screen Buffer
 mod vgaterm;
 
+// Intel 8042
 // Keyboard Controller
 mod kbc;
 
