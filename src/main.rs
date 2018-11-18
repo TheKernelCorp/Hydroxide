@@ -6,7 +6,6 @@
 // environment without std support.
 //
 #![no_std]
-
 //
 // no_main
 //
@@ -14,7 +13,6 @@
 // not being a main function.
 //
 #![no_main]
-
 //
 // Enable features
 //
@@ -27,7 +25,6 @@
 // to resort to naked function trickery.
 //
 #![feature(abi_x86_interrupt)]
-
 //
 // Enable pointer internals
 //
@@ -36,7 +33,6 @@
 // Unique pointer support.
 //
 #![feature(ptr_internals)]
-
 //
 // Enable allocation error handlers
 //
@@ -44,7 +40,6 @@
 // with a custom memory allocator.
 //
 #![feature(alloc_error_handler)]
-
 //
 // Enable panic info messages
 //
@@ -65,10 +60,11 @@
 // imports are not there.
 //
 
-extern crate x86_64;
-extern crate spin;
-extern crate pic8259_simple;
+extern crate bootloader;
 extern crate linked_list_allocator;
+extern crate pic8259_simple;
+extern crate spin;
+extern crate x86_64;
 extern crate pc_keyboard;
 extern crate bitflags;
 
@@ -77,6 +73,8 @@ extern crate bitflags;
 // Import structures
 //
 //
+
+use bootloader::bootinfo::BootInfo;
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
@@ -105,7 +103,6 @@ macro_rules! println {
 //
 //
 
-// TODO: Initialize the heap in the main function
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
@@ -144,6 +141,14 @@ mod kbc;
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
 
+// Page Allocator
+mod paging;
+use self::paging::Paging;
+
+// Heap Allocator
+mod heap;
+use self::heap::{find_heap_space, map_heap};
+
 // CMOS
 mod cmos;
 use self::cmos::{
@@ -159,15 +164,22 @@ use self::cmos::{
 
 #[no_mangle]
 #[allow(clippy::empty_loop)]
-pub extern "C" fn _start() -> ! {
+pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
-    // Get basics up and running
+    // Initialize GDT and IDT
     GDT::init();
     IDT::init();
-    PIC8259::init();
 
     // Print POST status
     print_post_status();
+
+    // Initialize paging and heap allocation
+    let (heap_start, heap_end, heap_size) = find_heap_space(bootinfo);
+    Paging::init(bootinfo);
+    map_heap(&ALLOCATOR, heap_start, heap_end, heap_size);
+
+    // Remap the PIC
+    PIC8259::init();
 
     // Enable interrupts
     x86_64::instructions::interrupts::enable();
@@ -188,7 +200,7 @@ pub extern "C" fn _start() -> ! {
 
     // Idle
     loop {
-        x86_64::instructions::hlt(); // hlt
+        x86_64::instructions::hlt();
     }
 }
 
