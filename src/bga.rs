@@ -47,12 +47,13 @@ impl<'a, T> VideoDevice<'a, T> where T: GraphicsProvider {
         }
     }
 
-    pub fn flush(self) {
-        let len = self.buffer.len();
-        let data = self.buffer.into_boxed_slice();
-        unsafe {
-            memcpy(Box::into_raw(self.provider.get_framebuffer(&self.mode)) as *mut _, Box::into_raw(data) as *const _, len);
-        }
+    pub fn flush(&self) {
+        // let len = self.buffer.len();
+        let fb: Box<&mut [u32]> = self.provider.get_framebuffer(&self.mode);
+        fb.copy_from_slice(&self.buffer[..10]);
+        // unsafe {
+        //     memcpy(Box::into_raw(self.provider.get_framebuffer(&self.mode)) as *mut _, self.buffer.as_ptr() as *const u8, len);
+        // }
     }
 }
 
@@ -93,8 +94,8 @@ impl BochsGraphicsAdapter {
         let mmio_bar = dev.get_bar(2);
         let mmio = mmio_bar.addr();
 
-        fb_bar.identity_map();
-        mmio_bar.identity_map();
+        fb_bar.identity_map().expect("Unable to map BGA framebuffer!");
+        mmio_bar.identity_map().expect("Unable to map BGA mmio!");
 
         BochsGraphicsAdapter {
             pci_device: *dev,
@@ -176,7 +177,7 @@ impl BochsGraphicsAdapter {
     pub fn detect() -> Result<PCIDevice, &'static str> {
         match PCIDevice::search(&BGA_SIGNATURE, None) {
             Some(dev) => Ok(dev),
-            None => Err("Could not find Bochs Graphics Adaptetr"),
+            None => Err("Could not find Bochs Graphics Adapter"),
         }
     }
 }
