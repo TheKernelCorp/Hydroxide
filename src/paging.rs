@@ -203,22 +203,22 @@ impl Paging {
     // Map the inclusive range
     if inclusive {
       let range = PhysFrame::<Size4KiB>::range_inclusive(
-        PhysFrame::from_start_address(start).unwrap(),
-        PhysFrame::from_start_address(end).unwrap(),
+        PhysFrame::containing_address(start),
+        PhysFrame::containing_address(end),
       );
       for frame in range {
-        table.identity_map(frame, flags, alloc).unwrap().flush();
+        table.identity_map(frame, flags, alloc).expect("Unable to map frame!").flush();
       }
     }
 
     // Map the exclusive range
     else {
       let range = PhysFrame::<Size4KiB>::range(
-        PhysFrame::from_start_address(start).unwrap(),
-        PhysFrame::from_start_address(end).unwrap(),
+        PhysFrame::containing_address(start),
+        PhysFrame::containing_address(end),
       );
       for frame in range {
-        table.identity_map(frame, flags, alloc).unwrap().flush();
+        table.identity_map(frame, flags, alloc).expect("Unable to map frame!").flush();
       }
     }
   }
