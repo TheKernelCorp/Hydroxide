@@ -1,11 +1,9 @@
 use core::ptr::Unique;
-
 use lazy_static::lazy_static;
-
 use alloc::prelude::*;
 use alloc::slice;
 use alloc::boxed::*;
-
+use alloc::vec;
 use rlibc::memcpy;
 
 use crate::pci::{PCIDevice, PCIFind, PCIBAR};
