@@ -123,16 +123,19 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Global Descriptor Table
 mod gdt;
+
 use self::gdt::GDT;
 
 // Interrupt Descriptor Table
 // Task State Segment
 mod idt;
+
 use self::idt::IDT;
 
 // Intel 8259
 // Programmable Interrupt Controller
 mod pic;
+
 use self::pic::PIC8259;
 
 // Intel 825x
@@ -148,14 +151,17 @@ mod kbc;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
+
 use self::ps2kbd::PS2Keyboard;
 
 // Page Allocator
 mod paging;
+
 use self::paging::Paging;
 
 // Heap Allocator
 mod heap;
+
 use self::heap::{find_heap_space, map_heap};
 
 // Peripheral Component Interconnect
@@ -163,10 +169,12 @@ mod pci;
 
 // Bochs Graphics Adapter
 mod bga;
+
 use self::bga::{BochsGraphicsAdapter, VideoDevice};
 
 // CMOS
 mod cmos;
+
 use self::cmos::{
     CMOS,
     POSTData,
@@ -179,16 +187,16 @@ use self::cmos::{
 //
 
 pub fn map_free_region(bootinfo: &BootInfo) -> (u64, u64) {
-  use bootloader::bootinfo::{MemoryRegion,MemoryRegionType};
-  let size = |region: &MemoryRegion|
-    (region.range.end_addr() - region.range.start_addr()) as usize;
-  for region in bootinfo.memory_map.iter() {
-    let sz: u64 = 4097;
-    if region.region_type != MemoryRegionType::Usable { continue }
-    if size(region) < sz as usize { continue }
-    return (region.range.start_addr(), region.range.start_addr() + sz);
-  }
-  panic!("Error.")
+    use bootloader::bootinfo::{MemoryRegion, MemoryRegionType};
+    let size = |region: &MemoryRegion|
+        (region.range.end_addr() - region.range.start_addr()) as usize;
+    for region in bootinfo.memory_map.iter() {
+        let sz: u64 = 4097;
+        if region.region_type != MemoryRegionType::Usable { continue; }
+        if size(region) < sz as usize { continue; }
+        return (region.range.start_addr(), region.range.start_addr() + sz);
+    }
+    panic!("Error.")
 }
 
 #[no_mangle]
@@ -208,13 +216,13 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     let region = map_free_region(bootinfo);
     Paging::init(bootinfo);
     use x86_64::{PhysAddr, structures::paging::PageTableFlags};
-    crate::paging::PAGING.lock().identity_map(
-      PhysAddr::new(region.0),
-      PhysAddr::new(region.1),
-      PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-      true,
-    );
-    // map_heap(&ALLOCATOR, heap_start, heap_end, heap_size);
+    /*crate::paging::PAGING.lock().identity_map(
+        PhysAddr::new(region.0),
+        PhysAddr::new(region.1),
+        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+        true,
+    );*/
+    map_heap(&ALLOCATOR, region.0, region.1, (region.1 - region.0) as usize);
 
     // Remap the PIC
     PIC8259::init();
@@ -235,7 +243,23 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     // Say hello
     println!("Hello from Hydroxide.");
-    use alloc::vec;
+
+    use core::ptr::Unique;
+    println!("{} {} {}", region.0, region.1, region.1 - region.0);
+    //let mut test: Unique<u32> = Unique::new((region.1 + 10) as *mut _).unwrap();
+    //unsafe { *test.as_mut() = 0xFF; };
+
+    use alloc::boxed::Box;
+    unsafe {
+        let mut test = Box::from_raw((region.1 + 128) as *mut _);
+        *test = 0xFF;
+        let testo = box 10;
+
+        use alloc::vec;
+        let x = vec![0u32; 2048];
+    }
+
+    //use alloc::vec;
     // let x = vec![0u32; 2048];
     loop {
         x86_64::instructions::hlt();
@@ -271,7 +295,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                     Some(mode)
                 })
                 .unwrap();
-            
+
             // dev.set_video_mode(&mode, true);
 
             #[inline(always)]
@@ -299,7 +323,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             None
         }
     }
-    .unwrap();
+        .unwrap();
 
     // Idle
     loop {
@@ -318,7 +342,7 @@ fn print_post_status() {
             println!("[post] time status: {}", data.time_status());
             println!("[post] adapter init status: {}", data.adapter_init_status());
             println!("[post] adapter status: {}", data.adapter_status());
-        },
+        }
         None => println!("[post] unable to fetch POST information."),
     };
 }
