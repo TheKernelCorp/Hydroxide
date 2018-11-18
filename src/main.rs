@@ -65,6 +65,8 @@ extern crate linked_list_allocator;
 extern crate pic8259_simple;
 extern crate spin;
 extern crate x86_64;
+extern crate pc_keyboard;
+extern crate bitflags;
 
 //
 //
@@ -119,27 +121,40 @@ use self::gdt::GDT;
 mod idt;
 use self::idt::IDT;
 
-// Programmable Interrupt Controller
 // Intel 8259
+// Programmable Interrupt Controller
 mod pic;
 use self::pic::PIC8259;
 
-// Programmable Interrupt Timer
 // Intel 825x
+// Programmable Interrupt Timer
 mod pit;
 
 // VGA Terminal Screen Buffer
 mod vgaterm;
 
+// Intel 8042
+// Keyboard Controller
+mod kbc;
+
 // Generic PS/2 Keyboard
 mod ps2kbd;
 use self::ps2kbd::PS2Keyboard;
 
+// Page Allocator
 mod paging;
 use self::paging::Paging;
 
+// Heap Allocator
 mod heap;
 use self::heap::{find_heap_space, map_heap};
+
+// CMOS
+mod cmos;
+use self::cmos::{
+    CMOS,
+    POSTData,
+};
 
 //
 //
@@ -150,21 +165,59 @@ use self::heap::{find_heap_space, map_heap};
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
+
+    // Initialize GDT and IDT
     GDT::init();
     IDT::init();
+
+    // Print POST status
+    print_post_status();
+
+    // Initialize paging and heap allocation
     let (heap_start, heap_end, heap_size) = find_heap_space(bootinfo);
     Paging::init(bootinfo);
-
     map_heap(&ALLOCATOR, heap_start, heap_end, heap_size);
 
+    // Remap the PIC
     PIC8259::init();
+
+    // Enable interrupts
     x86_64::instructions::interrupts::enable();
+
+    // Initialize the PS/2 keyboard
     PS2Keyboard::init();
 
+    // Print the current date and time
+    let datetime = CMOS::read_date_time();
+    println!(
+        "The date is {date}, the time is {time}.",
+        date = datetime.as_date(),
+        time = datetime.as_time(),
+    );
+
+    // Say hello
     println!("Hello from Hydroxide.");
+
+    // Idle
     loop {
         x86_64::instructions::hlt();
     }
+}
+
+fn print_post_status() {
+    match CMOS::read_post_data() {
+        Some(data) => {
+            println!("[post] power supply status: {}", data.power_supply_status());
+            println!("[post] cmos checksum status: {}", data.cmos_checksum_status());
+            println!("[post] cmos config matches: {}", data.configuration_match_status());
+            println!("[post] cmos memory amount matches: {}", data.memory_match_status());
+            println!("[post] drive health status: {}", data.drive_status());
+            println!("[post] time status: {}", data.time_status());
+            println!("[post] adapter init status: {}", data.adapter_init_status());
+            println!("[post] adapter status: {}", data.adapter_status());
+        },
+        None => println!("[post] unable to fetch POST information."),
+    };
 }
 
 //
@@ -174,6 +227,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 //
 
 /// This function is called on panic.
+#[cfg(not(test))]
 #[panic_handler]
 #[allow(clippy::empty_loop)]
 fn panic(info: &PanicInfo) -> ! {
@@ -193,6 +247,7 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 /// This function is called on allocation error.
+#[cfg(not(test))]
 #[alloc_error_handler]
 #[no_mangle]
 pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
