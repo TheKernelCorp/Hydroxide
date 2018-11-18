@@ -49,6 +49,12 @@
 //
 #![feature(panic_info_message)]
 
+#![feature(alloc)]
+
+#![feature(extern_crate_item_prelude)]
+
+#![feature(box_syntax)]
+
 //
 // Import crates
 //
@@ -66,6 +72,7 @@ extern crate pc_keyboard;
 extern crate pic8259_simple;
 extern crate spin;
 extern crate x86_64;
+extern crate alloc;
 
 //
 //
@@ -73,7 +80,7 @@ extern crate x86_64;
 //
 //
 
-use bootloader::bootinfo::{BootInfo, MemoryMap, MemoryRegion, MemoryRegionType};
+use bootloader::bootinfo::BootInfo;
 
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
@@ -113,16 +120,19 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Global Descriptor Table
 mod gdt;
+
 use self::gdt::GDT;
 
 // Interrupt Descriptor Table
 // Task State Segment
 mod idt;
+
 use self::idt::IDT;
 
 // Programmable Interrupt Controller
 // Intel 8259
 mod pic;
+
 use self::pic::PIC8259;
 
 // Programmable Interrupt Timer
@@ -134,17 +144,21 @@ mod vgaterm;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
+
 use self::ps2kbd::PS2Keyboard;
 
 mod pci;
 
 mod paging;
+
 use self::paging::Paging;
 
 mod bga;
+
 use self::bga::BochsGraphicsAdapter;
 
 mod heap;
+
 use self::heap::{find_heap_space, map_heap};
 
 //
@@ -206,13 +220,12 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 ((r as u32) << 16) | ((g as u32) << 8) | ((b as u32) << 0)
             }
 
-            let mut fb = dev.get_framebuffer();
-            for x in 0..mode.width {
-                for y in 0..mode.height {
+            let mut fb = dev.get_framebuffer(&mode);
+            for y in 0..mode.height {
+                for x in 0..mode.width {
                     unsafe {
                         let c = x as u8 ^ y as u8;
-                        fb.offset(x as isize + y as isize * mode.width as isize)
-                            .write(get_col(c, c, c));
+                        fb.as_mut()[x + y * mode.width] = get_col(c, c, c);
                     }
                 }
             }
@@ -224,7 +237,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             None
         }
     }
-    .unwrap();
+        .unwrap();
 
     loop {
         x86_64::instructions::hlt();
