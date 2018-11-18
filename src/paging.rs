@@ -1,7 +1,6 @@
 use bootloader::bootinfo::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
 use lazy_static::lazy_static;
 use spin::Mutex;
-
 use x86_64::{
   structures::paging::{
     FrameAllocator, Mapper, PageTable, PageTableFlags, PhysFrame, PhysFrameRange,
@@ -10,11 +9,14 @@ use x86_64::{
   PhysAddr,
 };
 
+/// Memory allocator
 pub struct Allocator {
   pub memory_map: &'static mut MemoryMap,
 }
 
 impl Allocator {
+
+  /// Create a physical frame range from a frame range
   fn phys_range(range: FrameRange) -> PhysFrameRange {
     PhysFrameRange {
       start: PhysFrame::from_start_address(PhysAddr::new(range.start_addr())).unwrap(),
@@ -22,6 +24,7 @@ impl Allocator {
     }
   }
 
+  /// Map a physical frame range to a frame range
   fn map_range(range: PhysFrameRange) -> FrameRange {
     FrameRange::new(
       range.start.start_address().as_u64(),
@@ -29,8 +32,10 @@ impl Allocator {
     )
   }
 
+  /// Allocate a physical memory frame
   pub fn allocate_frame(&mut self, region_type: MemoryRegionType) -> Option<PhysFrame> {
-    // try to find an existing region of same type that can be enlarged
+    
+    // Try to find an existing region of the same type that can be enlarged
     let mut iter = self.memory_map.iter_mut().peekable();
     while let Some(region) = iter.next() {
       if region.region_type == region_type {
@@ -49,9 +54,7 @@ impl Allocator {
     }
 
     fn split_usable_region<'a, I>(iter: &mut I) -> Option<(PhysFrame, PhysFrameRange)>
-    where
-      I: Iterator<Item = &'a mut MemoryRegion>,
-    {
+      where I: Iterator<Item = &'a mut MemoryRegion> {
       for region in iter {
         if region.region_type != MemoryRegionType::Usable {
           continue;
@@ -68,7 +71,7 @@ impl Allocator {
     }
 
     let result = if region_type == MemoryRegionType::PageTable {
-      // prevent fragmentation when page tables are allocated in between
+      // Prevent fragmentation when page tables are allocated in between
       split_usable_region(&mut self.memory_map.iter_mut().rev())
     } else {
       split_usable_region(&mut self.memory_map.iter_mut())
@@ -162,12 +165,15 @@ lazy_static! {
   });
 }
 
+/// Paging
 pub struct Paging {
   allocator: Option<Allocator>,
   page_table: Option<RecursivePageTable<'static>>,
 }
 
 impl Paging {
+
+  /// Initialize paging
   pub fn init(info: &'static mut BootInfo) {
     let table = info.p4_table_addr as *mut PageTable;
     let page_table = Some(RecursivePageTable::new(unsafe { &mut *table }).unwrap());
@@ -177,6 +183,7 @@ impl Paging {
     paging.page_table = page_table;
   }
 
+  /// Identity map the specified physical memory range
   pub fn identity_map(
     &mut self,
     start: PhysAddr,
@@ -184,27 +191,35 @@ impl Paging {
     flags: PageTableFlags,
     inclusive: bool,
   ) {
-    let table = self.page_table.as_mut().unwrap();
-    let alloc = self.allocator.as_mut().unwrap();
-    match inclusive {
-      false => {
-        let range = PhysFrame::<Size4KiB>::range(
-          PhysFrame::from_start_address(start).unwrap(),
-          PhysFrame::from_start_address(end).unwrap(),
-        );
-        for frame in range {
-          table.identity_map(frame, flags, alloc).unwrap().flush();
-        }
+
+    // Unwrap the page table
+    let table = self.page_table.as_mut()
+      .expect("Unable to unwrap page table. Initialize paging first!");
+    
+    // Unwrap the page allocator
+    let alloc = self.allocator.as_mut()
+      .expect("Unable to unwrap memory allocator. Initialize paging first!");
+    
+    // Map the inclusive range
+    if inclusive {
+      let range = PhysFrame::<Size4KiB>::range_inclusive(
+        PhysFrame::from_start_address(start).unwrap(),
+        PhysFrame::from_start_address(end).unwrap(),
+      );
+      for frame in range {
+        table.identity_map(frame, flags, alloc).unwrap().flush();
       }
-      true => {
-        let range = PhysFrame::<Size4KiB>::range_inclusive(
-          PhysFrame::from_start_address(start).unwrap(),
-          PhysFrame::from_start_address(end).unwrap(),
-        );
-        for frame in range {
-          table.identity_map(frame, flags, alloc).unwrap().flush();
-        }
+    }
+
+    // Map the exclusive range
+    else {
+      let range = PhysFrame::<Size4KiB>::range(
+        PhysFrame::from_start_address(start).unwrap(),
+        PhysFrame::from_start_address(end).unwrap(),
+      );
+      for frame in range {
+        table.identity_map(frame, flags, alloc).unwrap().flush();
       }
-    };
+    }
   }
 }
