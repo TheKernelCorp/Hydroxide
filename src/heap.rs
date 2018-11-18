@@ -1,4 +1,12 @@
-use bootloader::bootinfo::{BootInfo, MemoryRegion, MemoryRegionType};
+use bootloader::bootinfo::{
+  BootInfo,
+  MemoryRegion,
+  MemoryRegionType
+};
+use x86_64::{
+  PhysAddr,
+  structures::paging::PageTableFlags,
+};
 use linked_list_allocator::LockedHeap;
 use crate::paging::PAGING;
 
@@ -50,8 +58,6 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64, usize) {
 
 /// Map the heap memory region and initialize the heap allocator
 pub fn map_heap(allocator: &LockedHeap, start: u64, end: u64, size: usize) {
-  use x86_64::structures::paging::PageTableFlags;
-  use x86_64::PhysAddr;
 
   // Print information about the heap memory region
   println!(
