@@ -55,6 +55,8 @@
 
 #![feature(box_syntax)]
 
+#![feature(raw_vec_internals)]
+
 //
 // Import crates
 //
@@ -72,6 +74,8 @@ extern crate pc_keyboard;
 extern crate pic8259_simple;
 extern crate spin;
 extern crate x86_64;
+
+#[macro_use]
 extern crate alloc;
 
 //
@@ -155,7 +159,7 @@ use self::paging::Paging;
 
 mod bga;
 
-use self::bga::BochsGraphicsAdapter;
+use self::bga::{BochsGraphicsAdapter, VideoDevice};
 
 mod heap;
 
@@ -220,15 +224,18 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 ((r as u32) << 16) | ((g as u32) << 8) | ((b as u32) << 0)
             }
 
-            let mut fb = dev.get_framebuffer(&mode);
+            use crate::bga::GraphicsProvider;
+            dev.get_framebuffer(&mode)[0] = 0xFFFFFFFF;
+            let mut video = VideoDevice::new(&dev, &mode);
             for y in 0..mode.height {
                 for x in 0..mode.width {
                     unsafe {
                         let c = x as u8 ^ y as u8;
-                        fb.as_mut()[x + y * mode.width] = get_col(c, c, c);
+                        video.buffer[x + y * mode.width] = get_col(c, c, c);
                     }
                 }
             }
+            video.flush();
 
             Some(dev)
         }

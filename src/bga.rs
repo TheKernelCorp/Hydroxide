@@ -4,6 +4,9 @@ use lazy_static::lazy_static;
 
 use alloc::prelude::*;
 use alloc::slice;
+use alloc::boxed::*;
+
+use rlibc::memcpy;
 
 use crate::pci::{PCIDevice, PCIFind, PCIBAR};
 
@@ -31,6 +34,34 @@ lazy_static! {
   };
 }
 
+pub struct VideoDevice<'a, T> where T: GraphicsProvider {
+    pub provider: &'a T,
+    pub mode: VideoMode,
+    pub buffer: Vec<u32>,
+}
+
+impl<'a, T> VideoDevice<'a, T> where T: GraphicsProvider {
+    pub fn new(provider: &'a T, mode: &VideoMode) -> VideoDevice<'a, T> {
+        Self {
+            provider,
+            mode: mode.clone(),
+            buffer: vec![0u32; mode.width * mode.height],
+        }
+    }
+
+    pub fn flush(self) {
+        let len = self.buffer.len();
+        let data = self.buffer.into_boxed_slice();
+        unsafe {
+            memcpy(Box::into_raw(self.provider.get_framebuffer(&self.mode)) as *mut _, Box::into_raw(data) as *const _, len);
+        }
+    }
+}
+
+pub trait GraphicsProvider {
+    fn get_framebuffer(&self, mode: &VideoMode) -> Box<&mut [u32]>;
+}
+
 #[derive(Clone)]
 pub struct VideoMode {
     pub width: usize,
@@ -46,6 +77,16 @@ pub struct BochsGraphicsAdapter {
     framebuffer_bar: PCIBAR,
     mmio_bar: PCIBAR,
     registers: Unique<[u16; VBE_DISPI_NUM_REGISTERS as usize]>,
+}
+
+impl GraphicsProvider for BochsGraphicsAdapter {
+    fn get_framebuffer(&self, mode: &VideoMode) -> Box<&mut [u32]> {
+        let size: usize = (mode.width * mode.height) as usize;
+        unsafe {
+            let slice = slice::from_raw_parts_mut(self.framebuffer_bar.addr() as *mut u32, size);
+            box slice
+        }
+    }
 }
 
 impl BochsGraphicsAdapter {
@@ -86,14 +127,6 @@ impl BochsGraphicsAdapter {
         self.max_height = max_height as usize;
 
         self
-    }
-
-    pub fn get_framebuffer(&self, mode: &VideoMode) -> Box<&mut [u32]> {
-        let size: usize = (mode.width * mode.height) as usize;
-        unsafe {
-            let slice = slice::from_raw_parts_mut(self.framebuffer_bar.addr() as *mut u32, size);
-            box slice
-        }
     }
 
     pub fn set_video_mode(&mut self, mode: &VideoMode, clear: bool) {
