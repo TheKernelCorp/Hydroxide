@@ -172,7 +172,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     let bga = match BochsGraphicsAdapter::detect() {
         Ok(device) => {
-            let dev = BochsGraphicsAdapter::new(&device).init();
+            let mut dev = BochsGraphicsAdapter::new(&device).init();
             println!("[BGA @ 0x{:08x}] Found", dev.addr());
             println!(
                 "[BGA @ 0x{:08x}] Version: 0x{:04x}",
@@ -186,6 +186,37 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 dev.addr(),
                 dev.max_height
             );
+            let mode = dev
+                .get_default_mode()
+                .and_then(|mode| {
+                    println!(
+                        "[BGA @ 0x{:08x}] Supports resolution: {}x{}x{}",
+                        dev.addr(),
+                        mode.width,
+                        mode.height,
+                        mode.bpp
+                    );
+                    Some(mode)
+                })
+                .unwrap();
+
+            dev.set_video_mode(&mode, true);
+
+            fn get_col(r: u8, g: u8, b: u8) -> u32 {
+                ((r as u32) << 16) | ((g as u32) << 8) | ((b as u32) << 0)
+            }
+
+            let mut fb = dev.get_framebuffer();
+            for x in 0..mode.width {
+                for y in 0..mode.height {
+                    unsafe {
+                        let c = x as u8 ^ y as u8;
+                        fb.offset(x as isize + y as isize * mode.width as isize)
+                            .write(get_col(c, c, c));
+                    }
+                }
+            }
+
             Some(dev)
         }
         Err(err) => {

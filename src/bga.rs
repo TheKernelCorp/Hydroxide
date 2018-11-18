@@ -13,8 +13,26 @@ const VBE_DISPI_INDEX_YRES: u16 = 2;
 const VBE_DISPI_INDEX_BPP: u16 = 3;
 const VBE_DISPI_INDEX_ENABLE: u16 = 4;
 
+const VBE_DISPI_DISABLED: u16 = 0;
+const VBE_DISPI_ENABLED: u16 = 1;
+
+const VBE_DISPI_LFB_ENABLED: u16 = 64;
+const VBE_DISPI_NOCLEAR: u16 = 128;
+
 lazy_static! {
   static ref BGA_SIGNATURE: PCIFind = PCIFind::new(0x1234, 0x1111);
+  static ref DEFAULT_VIDEO_MODE: VideoMode = VideoMode {
+    width: 1280,
+    height: 720,
+    bpp: 32
+  };
+}
+
+#[derive(Clone)]
+pub struct VideoMode {
+  pub width: u16,
+  pub height: u16,
+  pub bpp: u16,
 }
 
 pub struct BochsGraphicsAdapter {
@@ -65,6 +83,38 @@ impl BochsGraphicsAdapter {
     self.max_height = max_height;
 
     self
+  }
+
+  pub fn get_framebuffer(&self) -> *mut u32 {
+    let mut fb: Unique<u32> = Unique::new(self.framebuffer_bar.addr() as *mut _).unwrap();
+    unsafe { fb.as_mut() }
+  }
+
+  pub fn set_video_mode(&mut self, mode: &VideoMode, clear: bool) {
+    let mut enable = VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED;
+    if !clear {
+      enable |= VBE_DISPI_NOCLEAR;
+    }
+
+    self.write_reg(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_DISABLED);
+    self.write_reg(VBE_DISPI_INDEX_XRES, mode.width);
+    self.write_reg(VBE_DISPI_INDEX_YRES, mode.height);
+    self.write_reg(VBE_DISPI_INDEX_BPP, mode.bpp);
+    self.write_reg(VBE_DISPI_INDEX_ENABLE, enable);
+  }
+
+  pub fn get_default_mode(&self) -> Option<VideoMode> {
+    if self.supports_resolution(DEFAULT_VIDEO_MODE.clone()) {
+      return Some(DEFAULT_VIDEO_MODE.clone());
+    }
+    None
+  }
+
+  pub fn supports_resolution(&self, mode: VideoMode) -> bool {
+    if mode.width > self.max_width || mode.height > self.max_height || mode.bpp > self.max_bpp {
+      return false;
+    }
+    true
   }
 
   fn read_reg(&self, index: u16) -> u16 {
