@@ -178,6 +178,19 @@ use self::cmos::{
 //
 //
 
+pub fn map_free_region(bootinfo: &BootInfo) -> (u64, u64) {
+  use bootloader::bootinfo::{MemoryRegion,MemoryRegionType};
+  let size = |region: &MemoryRegion|
+    (region.range.end_addr() - region.range.start_addr()) as usize;
+  for region in bootinfo.memory_map.iter() {
+    let sz: u64 = 4097;
+    if region.region_type != MemoryRegionType::Usable { continue }
+    if size(region) < sz as usize { continue }
+    return (region.range.start_addr(), region.range.start_addr() + sz);
+  }
+  panic!("Error.")
+}
+
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
@@ -189,10 +202,19 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     // Print POST status
     print_post_status();
 
+
     // Initialize paging and heap allocation
     let (heap_start, heap_end, heap_size) = find_heap_space(bootinfo);
+    let region = map_free_region(bootinfo);
     Paging::init(bootinfo);
-    map_heap(&ALLOCATOR, heap_start, heap_end, heap_size);
+    use x86_64::{PhysAddr, structures::paging::PageTableFlags};
+    crate::paging::PAGING.lock().identity_map(
+      PhysAddr::new(region.0),
+      PhysAddr::new(region.1),
+      PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+      true,
+    );
+    // map_heap(&ALLOCATOR, heap_start, heap_end, heap_size);
 
     // Remap the PIC
     PIC8259::init();
@@ -213,6 +235,11 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     // Say hello
     println!("Hello from Hydroxide.");
+    use alloc::vec;
+    // let x = vec![0u32; 2048];
+    loop {
+        x86_64::instructions::hlt();
+    }
 
     // Detect a Bochs Graphics Adapter
     let bga = match BochsGraphicsAdapter::detect() {
@@ -244,26 +271,27 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                     Some(mode)
                 })
                 .unwrap();
+            
+            // dev.set_video_mode(&mode, true);
 
-            dev.set_video_mode(&mode, true);
-
+            #[inline(always)]
             fn get_col(r: u8, g: u8, b: u8) -> u32 {
-                ((r as u32) << 16) | ((g as u32) << 8) | ((b as u32) << 0)
+                (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
             }
 
             use crate::bga::GraphicsProvider;
-            dev.get_framebuffer(&mode)[0] = 0xFFFFFFFF;
+            // dev.get_framebuffer(&mode)[0] = 0xFFFF_FFFF;
             let mut video = VideoDevice::new(&dev, &mode);
-            for y in 0..mode.height {
-                for x in 0..mode.width {
-                    unsafe {
-                        let c = x as u8 ^ y as u8;
-                        video.buffer[x + y * mode.width] = get_col(c, c, c);
-                    }
-                }
-            }
-            video.flush();
+            // for y in 0..mode.height {
+            //     for x in 0..mode.width {
+            //         unsafe {
+            //             let c = (x % 0xFF) as u8 ^ (y % 0xFF) as u8;
+            //             video.buffer[x + y * mode.width] = get_col(c, c, c);
+            //         }
+            //     }
+            // }
 
+            // video.flush();
             Some(dev)
         }
         Err(err) => {
