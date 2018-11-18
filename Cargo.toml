@@ -17,3 +17,4 @@ rlibc = "1.0.0"
 
 [package.metadata.bootimage]
 default-target = "x86_64-hydroxide.json"
+run-command = ["qemu-system-x86_64", "-drive", "format=raw,file={}", "-m", "1G"]

@@ -11,15 +11,13 @@ use linked_list_allocator::LockedHeap;
 use crate::paging::PAGING;
 
 /// Find a memory region suitable for the heap
-pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64, usize) {
+pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
 
     // Initialize the memory region to None
     let mut found_region: Option<&MemoryRegion> = None;
 
-    /// Determine the size of the specified memory region
-    fn size(region: &MemoryRegion) -> usize {
-        (region.range.end_addr() - region.range.start_addr()) as usize
-    }
+    let size = |region: &MemoryRegion|
+        (region.range.end_addr() - region.range.start_addr()) as usize;
 
     // Iterate over all memory regions
     for region in bootinfo.memory_map.iter() {
@@ -50,9 +48,8 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64, usize) {
 
     // Return a triple with the start- and end-addresses and the size
     (
-        found_region.range.start_addr(),
-        found_region.range.end_addr(),
-        size(found_region),
+        found_region.range.start_addr() + 1000 * 4096,
+        found_region.range.end_addr() + 200000 * 4096,
     )
 }
 
@@ -69,7 +66,7 @@ pub fn map_heap(allocator: &LockedHeap, start: u64, end: u64, size: usize) {
     PAGING.lock().identity_map(
         PhysAddr::new(start),
         PhysAddr::new(end),
-        PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE,
+        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
         false,
     );
 

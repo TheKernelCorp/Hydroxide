@@ -186,19 +186,6 @@ use self::cmos::{
 //
 //
 
-pub fn map_free_region(bootinfo: &BootInfo) -> (u64, u64) {
-    use bootloader::bootinfo::{MemoryRegion, MemoryRegionType};
-    let size = |region: &MemoryRegion|
-        (region.range.end_addr() - region.range.start_addr()) as usize;
-    for region in bootinfo.memory_map.iter() {
-        let sz: u64 = 4097;
-        if region.region_type != MemoryRegionType::Usable { continue; }
-        if size(region) < sz as usize { continue; }
-        return (region.range.start_addr(), region.range.start_addr() + sz);
-    }
-    panic!("Error.")
-}
-
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
@@ -210,19 +197,11 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     // Print POST status
     print_post_status();
 
+    let (heap_start, heap_end) = find_heap_space(bootinfo);
 
-    // Initialize paging and heap allocation
-    let (heap_start, heap_end, heap_size) = find_heap_space(bootinfo);
-    let region = map_free_region(bootinfo);
     Paging::init(bootinfo);
-    use x86_64::{PhysAddr, structures::paging::PageTableFlags};
-    /*crate::paging::PAGING.lock().identity_map(
-        PhysAddr::new(region.0),
-        PhysAddr::new(region.1),
-        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-        true,
-    );*/
-    map_heap(&ALLOCATOR, region.0, region.1, (region.1 - region.0) as usize);
+
+    map_heap(&ALLOCATOR, heap_start, heap_end, (heap_end - heap_start) as usize);
 
     // Remap the PIC
     PIC8259::init();
@@ -243,27 +222,6 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     // Say hello
     println!("Hello from Hydroxide.");
-
-    use core::ptr::Unique;
-    println!("{} {} {}", region.0, region.1, region.1 - region.0);
-    //let mut test: Unique<u32> = Unique::new((region.1 + 10) as *mut _).unwrap();
-    //unsafe { *test.as_mut() = 0xFF; };
-
-    use alloc::boxed::Box;
-    unsafe {
-        let mut test = Box::from_raw((region.1 + 128) as *mut _);
-        *test = 0xFF;
-        let testo = box 10;
-
-        use alloc::vec;
-        let x = vec![0u32; 2048];
-    }
-
-    //use alloc::vec;
-    // let x = vec![0u32; 2048];
-    loop {
-        x86_64::instructions::hlt();
-    }
 
     // Detect a Bochs Graphics Adapter
     let bga = match BochsGraphicsAdapter::detect() {
