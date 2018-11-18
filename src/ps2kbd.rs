@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use x86_64::structures::idt::ExceptionStackFrame;
-use x86_64::instructions::port::Port;
 use spin::Mutex;
 use lazy_static::lazy_static;
 use pc_keyboard::{
@@ -11,27 +10,7 @@ use pc_keyboard::{
     layouts::Us104Key,
 };
 use crate::pic::PIC8259;
-
-//
-// Keyboard registers
-//
-
-const KBD_DATA : u16 = 0x60;
-const KBD_STATUS: u16 = 0x64;
-
-//
-// Keyboard I/O ports
-//
-lazy_static! {
-
-    /// Data port
-    pub static ref KBD_DATA_PORT: Mutex<Port<u8>> =
-        Mutex::new(Port::new(KBD_DATA));
-
-    /// Status port
-    pub static ref KBD_STATUS_PORT: Mutex<Port<u8>> =
-        Mutex::new(Port::new(KBD_STATUS));
-}
+use crate::kbc::KBC;
 
 //
 // Global state
@@ -97,8 +76,8 @@ impl PS2Keyboard {
     pub fn init() {
         unsafe {
 
-            // Wait till the keyboard is ready
-            PS2Keyboard::wait_ready();
+            // Wait till the KBC is ready
+            KBC::wait_ready();
 
             // Run self test
             PS2Keyboard::run_self_test();
@@ -113,8 +92,8 @@ impl PS2Keyboard {
             }
 
             // Enable
-            PS2Keyboard::send_byte(KBD_COM_SCAN_ON);
-            PS2Keyboard::wait_ready();
+            KBC::write_byte(KBD_COM_SCAN_ON);
+            KBC::wait_ready();
         }
         
         // Mark the keyboard as initialized
@@ -126,8 +105,8 @@ impl PS2Keyboard {
     }
 
     unsafe fn _run_self_test(resent: bool) {
-        PS2Keyboard::send_byte(KBD_COM_SELF_TEST);
-        match PS2Keyboard::read_byte() {
+        KBC::write_byte(KBD_COM_SELF_TEST);
+        match KBC::read_byte() {
             KBD_RES_ST_PASS => println!("[ps2kbd] info: self test passed"),
             KBD_RES_ST_FAIL_A | KBD_RES_ST_FAIL_B => println!("[ps2kbd] error: self test failed"),
             KBD_RES_RESEND if !resent => PS2Keyboard::_run_self_test(true),
@@ -141,9 +120,9 @@ impl PS2Keyboard {
     }
 
     unsafe fn _set_leds(byte: u8, resent: bool) {
-        PS2Keyboard::send_byte(KBD_COM_LED);
-        PS2Keyboard::send_byte(byte);
-        match PS2Keyboard::read_byte() {
+        KBC::write_byte(KBD_COM_LED);
+        KBC::write_byte(byte);
+        match KBC::read_byte() {
             KBD_RES_ACK => println!("[ps2kbd] info: updated led status"),
             KBD_RES_RESEND if !resent => PS2Keyboard::_set_leds(byte, true),
             KBD_RES_RESEND => println!("[ps2kbd] error: unable to set led status"),
@@ -156,9 +135,9 @@ impl PS2Keyboard {
     }
 
     unsafe fn _set_scan_table(code: u8, resent: bool) {
-        PS2Keyboard::send_byte(KBD_COM_SCANCODE);
-        PS2Keyboard::send_byte(code);
-        match PS2Keyboard::read_byte() {
+        KBC::write_byte(KBD_COM_SCANCODE);
+        KBC::write_byte(code);
+        match KBC::read_byte() {
             KBD_RES_ACK => println!("[ps2kbd] info: setting scan table {}", code),
             KBD_RES_RESEND if !resent => PS2Keyboard::_set_scan_table(code, true),
             KBD_RES_RESEND => println!("[ps2kbd] error: unable to set scan table"),
@@ -171,11 +150,11 @@ impl PS2Keyboard {
     }
 
     unsafe fn _get_scan_table(resent: bool) -> Option<u8> {
-        PS2Keyboard::send_byte(KBD_COM_SCANCODE);
-        match PS2Keyboard::read_byte() {
+        KBC::write_byte(KBD_COM_SCANCODE);
+        match KBC::read_byte() {
             KBD_RES_ACK => {
-                PS2Keyboard::send_byte(0x00);
-                match PS2Keyboard::read_byte() {
+                KBC::write_byte(0x00);
+                match KBC::read_byte() {
                     0x43 => Some(1),
                     0x41 => Some(2),
                     0x3f => Some(3),
@@ -193,29 +172,11 @@ impl PS2Keyboard {
             },
         }
     }
-
-    /// Wait for the keyboard to become ready
-    unsafe fn wait_ready() {
-        while KBD_STATUS_PORT.lock().read() & 0x2 != 0 {}
-    }
-
-    // Read the keyboard data port
-    unsafe fn read_byte() -> u8 {
-        PS2Keyboard::wait_ready();
-        KBD_DATA_PORT.lock().read()
-    }
-
-    /// Send a byte to the keyboard data port
-    unsafe fn send_byte(com: u8) {
-        PS2Keyboard::wait_ready();
-        KBD_DATA_PORT.lock().write(com);
-    }
 }
 
 fn read_next_key() {
-    let data = unsafe { KBD_DATA_PORT.lock().read() };
+    let data = unsafe { KBC::read_byte() };
     let mut kbd = KEYBOARD.lock();
-    kbd.clear();
     match kbd.add_byte(data) {
         Ok(Some(event)) => {
             let key = kbd.process_keyevent(event.clone());
@@ -231,15 +192,9 @@ fn read_next_key() {
         Ok(None) => (),
         Err(_) => (),
     };
-    unsafe { PS2Keyboard::wait_ready() }
 }
 
 pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut ExceptionStackFrame) {
-
-    // Wait till the keyboard is ready
-    unsafe {
-        PS2Keyboard::wait_ready();
-    }
 
     // Is the keyboard already initialized?
     if *KEYBOARD_INITIALIZED.lock() {
@@ -250,7 +205,7 @@ pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut ExceptionStack
 
         // Discard the key
         unsafe {
-            KBD_DATA_PORT.lock().read();
+            KBC::read_byte();
         }
     }
 
