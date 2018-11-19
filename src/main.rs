@@ -254,7 +254,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 })
                 .unwrap();
 
-            // dev.set_video_mode(&mode, true);
+            dev.set_video_mode(&mode, true);
 
             #[inline(always)]
             fn get_col(r: u8, g: u8, b: u8) -> u32 {
@@ -262,18 +262,18 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             }
 
             use crate::bga::GraphicsProvider;
-            // dev.get_framebuffer(&mode)[0] = 0xFFFF_FFFF;
+            dev.get_framebuffer(&mode)[0] = 0xFFFF_FFFF;
             let mut video = VideoDevice::new(&dev, &mode);
-            // for y in 0..mode.height {
-            //     for x in 0..mode.width {
-            //         unsafe {
-            //             let c = (x % 0xFF) as u8 ^ (y % 0xFF) as u8;
-            //             video.buffer[x + y * mode.width] = get_col(c, c, c);
-            //         }
-            //     }
-            // }
+            for y in 0..mode.height {
+                for x in 0..mode.width {
+                    unsafe {
+                        let c = (x % 0xFF) as u8 ^ (y % 0xFF) as u8;
+                        video.buffer[x + y * mode.width] = get_col(c, c, c);
+                    }
+                }
+            }
 
-            // video.flush();
+            video.flush();
             Some(dev)
         }
         Err(err) => {

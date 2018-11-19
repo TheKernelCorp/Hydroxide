@@ -48,12 +48,8 @@ impl<'a, T> VideoDevice<'a, T> where T: GraphicsProvider {
     }
 
     pub fn flush(&self) {
-        // let len = self.buffer.len();
         let fb: Box<&mut [u32]> = self.provider.get_framebuffer(&self.mode);
-        fb.copy_from_slice(&self.buffer[..10]);
-        // unsafe {
-        //     memcpy(Box::into_raw(self.provider.get_framebuffer(&self.mode)) as *mut _, self.buffer.as_ptr() as *const u8, len);
-        // }
+        fb.copy_from_slice(&self.buffer);
     }
 }
 
