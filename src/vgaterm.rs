@@ -36,7 +36,6 @@ pub struct TerminalDevice {
 }
 
 impl TerminalDevice {
-
     pub fn new(ptr: usize) -> Self {
         let mut term = TerminalDevice {
             x: 0,
@@ -52,7 +51,7 @@ impl TerminalDevice {
         let chr = chattr!(b' ', self.color);
         let buf = unsafe { self.buf.as_mut() };
         #[allow(clippy::needless_range_loop)]
-        for i in 0..VGA_SIZE {
+            for i in 0..VGA_SIZE {
             buf[i] = chr;
         }
         self.x = 0;
@@ -144,12 +143,36 @@ impl TerminalDevice {
     }
 }
 
-impl core::fmt::Write for TerminalDevice {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+use crate::hal::{DeviceWrite, Device, DeviceType};
+
+impl DeviceWrite<u8> for TerminalDevice {
+    fn write(&mut self, byte: u8) {
+        self.write_byte(byte);
+    }
+}
+
+impl DeviceWrite<&str> for TerminalDevice {
+    fn write(&mut self, s: &str) {
         for b in s.bytes() {
-            self.write_byte(b);
+            self.write(b);
         }
         self.update_physical_cursor();
+    }
+}
+
+impl Device for TerminalDevice {
+    fn get_type(&self) -> DeviceType {
+        return DeviceType::CharDevice;
+    }
+}
+
+unsafe impl Send for TerminalDevice {}
+
+unsafe impl Sync for TerminalDevice {}
+
+impl core::fmt::Write for TerminalDevice {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s);
         Ok(())
     }
 }

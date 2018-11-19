@@ -49,6 +49,10 @@
 //
 #![feature(panic_info_message)]
 
+#![feature(alloc)]
+
+#![feature(extern_crate_item_prelude)]
+
 //
 // Import crates
 //
@@ -67,6 +71,9 @@ extern crate spin;
 extern crate x86_64;
 extern crate pc_keyboard;
 extern crate bitflags;
+
+#[macro_use]
+extern crate alloc;
 
 //
 //
@@ -162,6 +169,8 @@ use self::cmos::{
     CMOS,
     POSTData,
 };
+
+mod hal;
 
 //
 //
