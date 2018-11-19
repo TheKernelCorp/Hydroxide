@@ -1,7 +1,10 @@
 use core::ptr::Unique;
 use lazy_static::lazy_static;
 use x86_64::instructions::port::Port;
+use core::ptr::NonNull;
 use spin::Mutex;
+use core::ptr;
+use alloc::boxed::Box;
 
 use crate::hal::DEVICE_MANAGER;
 
@@ -13,11 +16,9 @@ const VGA_WIDTH: usize = 80;
 const VGA_HEIGHT: usize = 25;
 
 lazy_static! {
-    pub static ref KTERM: Mutex<TerminalDevice> = {
-    let box_device = DEVICE_MANAGER.lock().get_device("tty0").unwrap();
-    let downcast = box_device.as_any().downcast_mut::<TerminalDevice>().unwrap();
-    //Mutex::new(*DEVICE_MANAGER.lock().get_device_owned("tty0").unwrap().as_any().downcast_ref::<TerminalDevice>().unwrap())
-    Mutex::new(*downcast)
+    pub static ref KTERM: &'static mut TerminalDevice = {
+    let dev = unsafe { DEVICE_MANAGER.lock().get_device("tty0").unwrap() };
+    (*dev.lock()).as_any().downcast_mut::<TerminalDevice>().unwrap()
     };
 }
 
@@ -170,7 +171,7 @@ impl Device for TerminalDevice {
         self.update_physical_cursor();
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 }

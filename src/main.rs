@@ -96,7 +96,7 @@ use linked_list_allocator::LockedHeap;
 
 macro_rules! print {
     ($($arg:tt)*) => {
-        core::fmt::Write::write_fmt(&mut *crate::vgaterm::KTERM.lock(), format_args!($($arg)*)).unwrap();
+        core::fmt::Write::write_fmt(*crate::vgaterm::KTERM, format_args!($($arg)*)).unwrap();
     };
 }
 
@@ -253,7 +253,7 @@ fn print_post_status() {
 #[panic_handler]
 #[allow(clippy::empty_loop)]
 fn panic(info: &PanicInfo) -> ! {
-    vgaterm::KTERM.lock().clear();
+    vgaterm::KTERM.clear();
     println!("*** KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
@@ -273,7 +273,7 @@ fn panic(info: &PanicInfo) -> ! {
 #[alloc_error_handler]
 #[no_mangle]
 pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
-    vgaterm::KTERM.lock().clear();
+    vgaterm::KTERM.clear();
     println!("*** OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();

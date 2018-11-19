@@ -1,6 +1,8 @@
 use alloc::prelude::*;
 use alloc::boxed::Box;
 use alloc::collections::btree_map::BTreeMap;
+use core::ptr::NonNull;
+use core::cell::RefCell;
 use lazy_static::lazy_static;
 
 use core::any::Any;
@@ -19,11 +21,11 @@ pub trait Device {
     fn write_byte(&mut self, at: usize, val: u8);
     fn write_bytes(&mut self, at: usize, val: &[u8], len: usize);
 
-    fn as_any(&self) -> &dyn Any;
+    fn as_any(&mut self) -> &mut dyn Any;
 }
 
 pub struct DeviceManager {
-    devices: BTreeMap<&'static str, Box<dyn Device + Sync + Send>>,
+    devices: BTreeMap<&'static str, Mutex<Box<dyn Device + Sync + Send>>>,
 }
 
 impl DeviceManager {
@@ -31,15 +33,17 @@ impl DeviceManager {
         if self.devices.contains_key(name) {
             return Err(format!("Device {} already registered.", name));
         }
-        self.devices.insert(name, dev);
+        self.devices.insert(name, Mutex::new(dev));
         Ok(())
     }
 
-    pub fn get_device(&self, name: &'static str) -> Option<&Box<dyn Device + Sync + Send>> {
+    pub unsafe fn get_device(&mut self, name: &'static str) -> Option<&Mutex<Box<dyn Device + Sync + Send>>> {
         let dev = self.devices.get(name).unwrap();
         Some(dev)
     }
 }
+
+unsafe impl Send for DeviceManager {}
 
 pub enum DeviceType {
     BlockDevice,
