@@ -114,16 +114,19 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Global Descriptor Table
 mod gdt;
+
 use self::gdt::GDT;
 
 // Interrupt Descriptor Table
 // Task State Segment
 mod idt;
+
 use self::idt::IDT;
 
 // Intel 8259
 // Programmable Interrupt Controller
 mod pic;
+
 use self::pic::PIC8259;
 
 // Intel 825x
@@ -139,18 +142,22 @@ mod kbc;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
+
 use self::ps2kbd::PS2Keyboard;
 
 // Page Allocator
 mod paging;
+
 use self::paging::Paging;
 
 // Heap Allocator
 mod heap;
+
 use self::heap::{find_heap_space, map_heap};
 
 // CMOS
 mod cmos;
+
 use self::cmos::{
     CMOS,
     POSTData,
@@ -174,9 +181,9 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     print_post_status();
 
     // Initialize paging and heap allocation
-    let (heap_start, heap_end, heap_size) = find_heap_space(bootinfo);
+    let (heap_start, heap_end) = find_heap_space(bootinfo);
     Paging::init(bootinfo);
-    map_heap(&ALLOCATOR, heap_start, heap_end, heap_size);
+    map_heap(&ALLOCATOR, heap_start, heap_end, (heap_end - heap_start) as usize;
 
     // Remap the PIC
     PIC8259::init();
@@ -215,7 +222,7 @@ fn print_post_status() {
             println!("[post] time status: {}", data.time_status());
             println!("[post] adapter init status: {}", data.adapter_init_status());
             println!("[post] adapter status: {}", data.adapter_status());
-        },
+        }
         None => println!("[post] unable to fetch POST information."),
     };
 }
