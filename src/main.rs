@@ -174,7 +174,12 @@ use self::cmos::{
     POSTData,
 };
 
+// Hardware Abstraction Layer
 mod hal;
+
+// Serial Bus
+mod serial;
+use self::serial::{SerialDevice, SerialPort};
 
 //
 //
@@ -195,6 +200,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     Paging::init(bootinfo);
     map_heap(&ALLOCATOR, heap_start, heap_end, (heap_end - heap_start) as usize);
 
+    SerialDevice::init("com1", SerialPort::COM1);
     TerminalDevice::init("tty0", VGA_PTR);
 
     use core::ptr::Unique;
