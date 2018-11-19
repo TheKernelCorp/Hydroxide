@@ -49,7 +49,7 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
     // Return a triple with the start- and end-addresses and the size
     (
         found_region.range.start_addr() + 1000 * 4096,
-        found_region.range.end_addr() + 200000 * 4096,
+        found_region.range.end_addr(),
     )
 }
 
