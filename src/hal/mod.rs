@@ -37,7 +37,7 @@ impl DeviceManager {
         Ok(())
     }
 
-    pub unsafe fn get_device(&mut self, name: &'static str) -> Option<&Mutex<Box<dyn Device + Sync + Send>>> {
+    pub fn get_device(&mut self, name: &'static str) -> Option<&Mutex<Box<dyn Device + Sync + Send>>> {
         let dev = self.devices.get(name).unwrap();
         Some(dev)
     }

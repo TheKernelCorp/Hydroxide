@@ -15,13 +15,6 @@ const VGA_SIZE: usize = VGA_WIDTH * VGA_HEIGHT;
 const VGA_WIDTH: usize = 80;
 const VGA_HEIGHT: usize = 25;
 
-lazy_static! {
-    pub static ref KTERM: &'static mut TerminalDevice = {
-    let dev = unsafe { DEVICE_MANAGER.lock().get_device("tty0").unwrap() };
-    (*dev.lock()).as_any().downcast_mut::<TerminalDevice>().unwrap()
-    };
-}
-
 macro_rules! color {
     ($fc:expr, $bc:expr) => (bc << 4 | fc)
 }
