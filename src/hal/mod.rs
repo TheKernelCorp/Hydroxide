@@ -11,15 +11,21 @@ lazy_static! {
 }
 
 pub trait DeviceWrite<T> {
-    fn write(&mut self, t: T);
+    fn write(&mut self, at: usize, t: T);
+}
+
+pub trait DeviceRead<T> {
+    fn read(&mut self, at: usize) -> T;
 }
 
 pub trait Device {
     fn get_type(&self) -> DeviceType;
+
+    fn as_write<T>(&self) -> Result<Box<DeviceWrite<T>>, &'static str>;
 }
 
 pub struct DeviceManager {
-    devices: Vec<Box<Device + Send + Sync>>,
+    devices: Vec<Box<dyn Device + Send + Sync>>,
 }
 
 pub enum DeviceType {

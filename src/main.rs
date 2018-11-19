@@ -53,6 +53,8 @@
 
 #![feature(extern_crate_item_prelude)]
 
+#![feature(box_syntax)]
+
 //
 // Import crates
 //

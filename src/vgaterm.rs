@@ -146,23 +146,29 @@ impl TerminalDevice {
 use crate::hal::{DeviceWrite, Device, DeviceType};
 
 impl DeviceWrite<u8> for TerminalDevice {
-    fn write(&mut self, byte: u8) {
+    fn write(&mut self, at: usize, byte: u8) {
         self.write_byte(byte);
     }
 }
 
 impl DeviceWrite<&str> for TerminalDevice {
-    fn write(&mut self, s: &str) {
+    fn write(&mut self, at: usize, s: &str) {
         for b in s.bytes() {
-            self.write(b);
+            self.write(at, b);
         }
         self.update_physical_cursor();
     }
 }
 
+use alloc::boxed::Box;
+
 impl Device for TerminalDevice {
     fn get_type(&self) -> DeviceType {
         return DeviceType::CharDevice;
+    }
+
+    fn as_write<T>(&self) -> Result<Box<DeviceWrite<T>>, &'static str> {
+        Ok(box self)
     }
 }
 
@@ -172,7 +178,7 @@ unsafe impl Sync for TerminalDevice {}
 
 impl core::fmt::Write for TerminalDevice {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(s);
+        self.write(0, s);
         Ok(())
     }
 }
