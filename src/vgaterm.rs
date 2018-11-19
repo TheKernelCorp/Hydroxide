@@ -3,6 +3,8 @@ use lazy_static::lazy_static;
 use x86_64::instructions::port::Port;
 use spin::Mutex;
 
+use crate::hal::DEVICE_MANAGER;
+
 /// The address of the framebuffer in memory.
 pub const VGA_PTR: usize = 0xB8000;
 
@@ -11,7 +13,12 @@ const VGA_WIDTH: usize = 80;
 const VGA_HEIGHT: usize = 25;
 
 lazy_static! {
-    pub static ref KTERM: Mutex<TerminalDevice> = Mutex::new(TerminalDevice::new(VGA_PTR));
+    pub static ref KTERM: Mutex<TerminalDevice> = {
+    let box_device = DEVICE_MANAGER.lock().get_device("tty0").unwrap();
+    let downcast = box_device.as_any().downcast_mut::<TerminalDevice>().unwrap();
+    //Mutex::new(*DEVICE_MANAGER.lock().get_device_owned("tty0").unwrap().as_any().downcast_ref::<TerminalDevice>().unwrap())
+    Mutex::new(*downcast)
+    };
 }
 
 macro_rules! color {
@@ -36,7 +43,7 @@ pub struct TerminalDevice {
 }
 
 impl TerminalDevice {
-    pub fn new(ptr: usize) -> Self {
+    pub fn init(name: &'static str, ptr: usize) -> Result<(), &str> {
         let mut term = TerminalDevice {
             x: 0,
             y: 0,
@@ -44,7 +51,8 @@ impl TerminalDevice {
             buf: Unique::new(ptr as *mut _).unwrap(),
         };
         term.clear();
-        term
+        DEVICE_MANAGER.lock().register_device(name, box term).unwrap();
+        Ok(())
     }
 
     pub fn clear(&mut self) {
@@ -58,7 +66,7 @@ impl TerminalDevice {
         self.y = 0;
     }
 
-    fn write_byte(&mut self, byte: u8) {
+    fn write_u8(&mut self, byte: u8) {
         match byte {
 
             // Carriage return
@@ -71,7 +79,7 @@ impl TerminalDevice {
             b'\t' => {
                 const TAB_SIZE: usize = 2;
                 for _ in 0..(TAB_SIZE - (self.x % TAB_SIZE)) {
-                    self.write_byte(b' ');
+                    self.write_u8(b' ');
                 }
             }
 
@@ -143,32 +151,27 @@ impl TerminalDevice {
     }
 }
 
-use crate::hal::{DeviceWrite, Device, DeviceType};
-
-impl DeviceWrite<u8> for TerminalDevice {
-    fn write(&mut self, at: usize, byte: u8) {
-        self.write_byte(byte);
-    }
-}
-
-impl DeviceWrite<&str> for TerminalDevice {
-    fn write(&mut self, at: usize, s: &str) {
-        for b in s.bytes() {
-            self.write(at, b);
-        }
-        self.update_physical_cursor();
-    }
-}
-
-use alloc::boxed::Box;
+use crate::hal::{Device, DeviceType};
+use core::any::Any;
 
 impl Device for TerminalDevice {
     fn get_type(&self) -> DeviceType {
         return DeviceType::CharDevice;
     }
 
-    fn as_write<T>(&self) -> Result<Box<DeviceWrite<T>>, &'static str> {
-        Ok(box self)
+    fn write_byte(&mut self, at: usize, val: u8) {
+        self.write_u8(val);
+    }
+
+    fn write_bytes(&mut self, at: usize, val: &[u8], len: usize) {
+        for b in val {
+            self.write_byte(0, *b);
+        }
+        self.update_physical_cursor();
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -178,7 +181,9 @@ unsafe impl Sync for TerminalDevice {}
 
 impl core::fmt::Write for TerminalDevice {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.write(0, s);
+        let bytes = s.as_bytes();
+        let len = s.len();
+        self.write_bytes(0, bytes, len);
         Ok(())
     }
 }

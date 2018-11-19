@@ -145,6 +145,8 @@ mod pit;
 // VGA Terminal Screen Buffer
 mod vgaterm;
 
+use self::vgaterm::{TerminalDevice, VGA_PTR};
+
 // Intel 8042
 // Keyboard Controller
 mod kbc;
@@ -195,6 +197,8 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     let (heap_start, heap_end) = find_heap_space(bootinfo);
     Paging::init(bootinfo);
     map_heap(&ALLOCATOR, heap_start, heap_end, (heap_end - heap_start) as usize);
+
+    TerminalDevice::init("tty0", VGA_PTR);
 
     // Remap the PIC
     PIC8259::init();

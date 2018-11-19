@@ -1,31 +1,44 @@
-use crate::vgaterm::TerminalDevice;
-
 use alloc::prelude::*;
 use alloc::boxed::Box;
+use alloc::collections::btree_map::BTreeMap;
 use lazy_static::lazy_static;
 
+use core::any::Any;
+
+use spin::Mutex;
+
 lazy_static! {
-    static ref DEVICE_MANAGER: DeviceManager = DeviceManager {
-        devices: Vec::new(),
-    };
-}
-
-pub trait DeviceWrite<T> {
-    fn write(&mut self, at: usize, t: T);
-}
-
-pub trait DeviceRead<T> {
-    fn read(&mut self, at: usize) -> T;
+    pub static ref DEVICE_MANAGER: Mutex<DeviceManager> = Mutex::new(DeviceManager {
+        devices: BTreeMap::new(),
+    });
 }
 
 pub trait Device {
     fn get_type(&self) -> DeviceType;
 
-    fn as_write<T>(&self) -> Result<Box<DeviceWrite<T>>, &'static str>;
+    fn write_byte(&mut self, at: usize, val: u8);
+    fn write_bytes(&mut self, at: usize, val: &[u8], len: usize);
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub struct DeviceManager {
-    devices: Vec<Box<dyn Device + Send + Sync>>,
+    devices: BTreeMap<&'static str, Box<dyn Device + Sync + Send>>,
+}
+
+impl DeviceManager {
+    pub fn register_device(&mut self, name: &'static str, dev: Box<dyn Device + Sync + Send>) -> Result<(), String> {
+        if self.devices.contains_key(name) {
+            return Err(format!("Device {} already registered.", name));
+        }
+        self.devices.insert(name, dev);
+        Ok(())
+    }
+
+    pub fn get_device(&self, name: &'static str) -> Option<&Box<dyn Device + Sync + Send>> {
+        let dev = self.devices.get(name).unwrap();
+        Some(dev)
+    }
 }
 
 pub enum DeviceType {
