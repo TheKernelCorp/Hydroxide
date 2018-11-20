@@ -41,6 +41,12 @@ impl DeviceManager {
         let dev = self.devices.get(name).unwrap();
         Some(dev)
     }
+
+    pub fn with_device_cast<T, D: 'static>(&mut self, dev: &str, f: T) where T: Fn(&mut D) {
+        let mut boxed = self.devices.get(dev).unwrap().lock();
+        let dev = boxed.as_any().downcast_mut::<D>().unwrap();
+        f(dev);
+    }
 }
 
 unsafe impl Send for DeviceManager {}
