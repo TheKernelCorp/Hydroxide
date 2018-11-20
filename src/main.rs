@@ -95,7 +95,7 @@ use linked_list_allocator::LockedHeap;
 //
 
 macro_rules! print {
-( $ ( $ arg: tt) * ) => {
+($( $ arg: tt)* ) => {
 core::fmt::Write::write_fmt( ( * crate::hal::DEVICE_MANAGER.lock().get_device("tty0").unwrap().lock()).as_any().downcast_mut::< crate::vgaterm::TerminalDevice > ().unwrap(), format_args ! ( $ ( $ arg) *)).unwrap();
 };
 }
@@ -176,6 +176,7 @@ use self::cmos::{
 
 // Hardware Abstraction Layer
 mod hal;
+use self::hal::DEVICE_MANAGER;
 
 // Serial Bus
 mod serial;
