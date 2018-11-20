@@ -57,10 +57,10 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
 pub fn map_heap(allocator: &LockedHeap, start: u64, end: u64, size: usize) {
 
     // Print information about the heap memory region
-    println!(
+    /*println!(
         "[heap] start: 0x{:08x}; end: 0x{:08x}; size: 0x{:08x}",
         start, end, size
-    );
+    );*/
 
     // Identity map the heap memory region
     PAGING.lock().identity_map(

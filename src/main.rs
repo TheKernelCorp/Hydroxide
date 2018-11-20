@@ -49,6 +49,12 @@
 //
 #![feature(panic_info_message)]
 
+#![feature(alloc)]
+
+#![feature(extern_crate_item_prelude)]
+
+#![feature(box_syntax)]
+
 //
 // Import crates
 //
@@ -68,6 +74,9 @@ extern crate x86_64;
 extern crate pc_keyboard;
 extern crate bitflags;
 
+#[macro_use]
+extern crate alloc;
+
 //
 //
 // Import structures
@@ -86,15 +95,15 @@ use linked_list_allocator::LockedHeap;
 //
 
 macro_rules! print {
-    ($($arg:tt)*) => {
-        core::fmt::Write::write_fmt(&mut *crate::vgaterm::KTERM.lock(), format_args!($($arg)*)).unwrap();
-    };
+($( $ arg: tt)* ) => {
+core::fmt::Write::write_fmt( ( * crate::hal::DEVICE_MANAGER.lock().get_device("tty0").unwrap().lock()).as_any().downcast_mut::< crate::vgaterm::TerminalDevice > ().unwrap(), format_args ! ( $ ( $ arg) *)).unwrap();
+};
 }
 
 macro_rules! println {
-    () => (print!("\n"));
-    ($fmt:expr) => (print!(concat!($fmt, "\n")));
-    ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
+() => (print ! ("\n"));
+( $ fmt: expr) => (print! (concat ! ( $ fmt, "\n")));
+( $ fmt: expr, $( $ arg: tt) * ) => (print ! (concat ! ( $ fmt, "\n"), $ ( $ arg) * ));
 }
 
 //
@@ -136,6 +145,8 @@ mod pit;
 // VGA Terminal Screen Buffer
 mod vgaterm;
 
+use self::vgaterm::{TerminalDevice, VGA_PTR};
+
 // Intel 8042
 // Keyboard Controller
 mod kbc;
@@ -163,6 +174,14 @@ use self::cmos::{
     POSTData,
 };
 
+// Hardware Abstraction Layer
+mod hal;
+use self::hal::DEVICE_MANAGER;
+
+// Serial Bus
+mod serial;
+use self::serial::{SerialDevice, SerialPort};
+
 //
 //
 // Main entry point
@@ -173,25 +192,30 @@ use self::cmos::{
 #[allow(clippy::empty_loop)]
 pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
-    // Initialize GDT and IDT
+// Initialize GDT and IDT
     GDT::init();
     IDT::init();
 
-    // Print POST status
-    print_post_status();
-
-    // Initialize paging and heap allocation
+// Initialize paging and heap allocation
     let (heap_start, heap_end) = find_heap_space(bootinfo);
     Paging::init(bootinfo);
     map_heap(&ALLOCATOR, heap_start, heap_end, (heap_end - heap_start) as usize);
 
-    // Remap the PIC
+    SerialDevice::init("com1", SerialPort::COM1);
+    TerminalDevice::init("tty0", VGA_PTR);
+
+    use core::ptr::Unique;
+
+// Print POST status
+    print_post_status();
+
+// Remap the PIC
     PIC8259::init();
 
-    // Enable interrupts
+// Enable interrupts
     x86_64::instructions::interrupts::enable();
 
-    // Initialize the PS/2 keyboard
+// Initialize the PS/2 keyboard
     PS2Keyboard::init();
 
     // Print the current date and time
@@ -202,10 +226,10 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
         time = datetime.as_time(),
     );
 
-    // Say hello
+// Say hello
     println!("Hello from Hydroxide.");
 
-    // Idle
+// Idle
     loop {
         x86_64::instructions::hlt();
     }
@@ -238,7 +262,7 @@ fn print_post_status() {
 #[panic_handler]
 #[allow(clippy::empty_loop)]
 fn panic(info: &PanicInfo) -> ! {
-    vgaterm::KTERM.lock().clear();
+    (*crate::hal::DEVICE_MANAGER.lock().get_device("tty0").unwrap().lock()).as_any().downcast_mut::<crate::vgaterm::TerminalDevice>().unwrap().clear();
     println!("*** KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
@@ -258,7 +282,7 @@ fn panic(info: &PanicInfo) -> ! {
 #[alloc_error_handler]
 #[no_mangle]
 pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
-    vgaterm::KTERM.lock().clear();
+    (*crate::hal::DEVICE_MANAGER.lock().get_device("tty0").unwrap().lock()).as_any().downcast_mut::<crate::vgaterm::TerminalDevice>().unwrap().clear();
     println!("*** OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();
