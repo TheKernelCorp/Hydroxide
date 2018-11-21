@@ -32,6 +32,108 @@ lazy_static! {
   };
 }
 
+pub static FONT: &'static [u8] = include_bytes!("unifont.font");
+
+pub trait TerminalProvider {
+    fn get_width(&self) -> usize;
+    fn get_height(&self) -> usize;
+
+    fn get_char_width(&self) -> usize;
+    fn get_char_height(&self) -> usize;
+
+    fn draw_char(&mut self, x: usize, y: usize, character: char, color: u32);
+}
+
+pub struct TerminalDriver<'a> {
+    x: usize,
+    y: usize,
+    color: u32,
+    provider: &'a mut TerminalProvider,
+}
+
+impl<'a> TerminalDriver<'a> {
+    pub fn new(provider: &'a mut TerminalProvider) -> TerminalDriver<'a> {
+        TerminalDriver {
+            x: 0,
+            y: 0,
+            color: 0xFFFFFFFF,
+            provider,
+        }
+    }
+
+    pub fn write_car(&mut self, c: char) {
+        match c {
+            '\n' => self.new_line(),
+            _ => {
+                if self.x >= self.provider.get_width() {
+                    self.new_line();
+                }
+                self.provider.draw_char(self.x * self.provider.get_char_width(), self.y * self.provider.get_char_height(), c, self.color);
+                self.x += 1;
+            }
+        }
+    }
+
+    pub fn set_color(&mut self, color: u32) {
+        self.color = color;
+    }
+
+    pub fn new_line(&mut self) {
+        self.x = 0;
+        if self.y < self.provider.get_height() - 1 {
+            self.y += 1;
+        } else {
+            // TODO: Scroll
+        }
+    }
+}
+
+impl<'a> core::fmt::Write for TerminalDriver<'a> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for c in s.chars() {
+            self.write_car(c);
+        }
+        Ok(())
+    }
+}
+
+impl<'a, T> TerminalProvider for VideoDevice<'a, T> where T: GraphicsProvider {
+    fn get_width(&self) -> usize {
+        self.mode.width / 8
+    }
+
+    fn get_height(&self) -> usize {
+        self.mode.height / 16
+    }
+
+    fn get_char_width(&self) -> usize {
+        8
+    }
+
+    fn get_char_height(&self) -> usize {
+        16
+    }
+
+    fn draw_char(&mut self, x: usize, y: usize, character: char, color: u32) {
+        if x + 8 <= self.mode.width && y + 16 <= self.mode.height {
+            let font_i = 16 * (character as usize);
+            let mut dst = self.buffer.as_mut_ptr() as usize + (x + y * self.mode.width) * 4;
+
+            if font_i + 16 <= FONT.len() {
+                for row in 0..16 {
+                    let row_data = FONT[font_i + row];
+                    for col in 0..8 {
+                        if row_data >> (7 - col) & 1 == 1 {
+                            unsafe { *((dst + col * 4) as *mut u32) = color; }
+                        }
+                    }
+                    dst += self.mode.width * 4;
+                }
+            }
+        }
+    }
+}
+
 pub struct VideoDevice<'a, T> where T: GraphicsProvider {
     pub provider: &'a T,
     pub mode: VideoMode,

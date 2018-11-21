@@ -279,17 +279,15 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
             }
 
-            use crate::bga::GraphicsProvider;
-            dev.get_framebuffer(&mode)[0] = 0xFFFF_FFFF;
+            use crate::bga::{GraphicsProvider, TerminalDriver};
+            use core::fmt::Write;
             let mut video = VideoDevice::new(&dev, &mode);
-            for y in 0..mode.height {
-                for x in 0..mode.width {
-                    unsafe {
-                        let c = (x % 0xFF) as u8 ^ (y % 0xFF) as u8;
-                        video.buffer[x + y * mode.width] = get_col(c, c, c);
-                    }
-                }
-            }
+            let mut term = TerminalDriver::new(&mut video);
+            Write::write_str(&mut term, "Hello World!\n");
+            term.set_color(get_col(255, 128, 255));
+            Write::write_str(&mut term, "Can do full RGB colors!\n");
+            term.set_color(0xAAAAAAAA);
+            Write::write_str(&mut term, "That was pink, but this is gray!\n");
 
             video.flush();
             Some(dev)
