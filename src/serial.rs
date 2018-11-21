@@ -1,6 +1,6 @@
+use crate::hal::{Device, DeviceType, DEVICE_MANAGER};
 use core::any::Any;
 use x86_64::instructions::port::Port;
-use crate::hal::{Device, DeviceType, DEVICE_MANAGER};
 
 pub enum SerialPort {
     COM1 = 0x3F8,
@@ -23,7 +23,6 @@ pub struct SerialDevice {
 }
 
 impl SerialDevice {
-
     pub fn init(name: &'static str, port: SerialPort) -> Result<(), &str> {
         let base_port = port as u16;
 
@@ -45,7 +44,10 @@ impl SerialDevice {
         unsafe { dev.init_bus() }
 
         // Register the device
-        DEVICE_MANAGER.lock().register_device(name, box dev).expect("Unable to initialize serial device!");
+        DEVICE_MANAGER
+            .lock()
+            .register_device(name, box dev)
+            .expect("Unable to initialize serial device!");
         Ok(())
     }
 
@@ -96,7 +98,6 @@ impl SerialDevice {
 }
 
 impl Device for SerialDevice {
-
     fn get_type(&self) -> DeviceType {
         DeviceType::CharDevice
     }

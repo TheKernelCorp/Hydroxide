@@ -1,17 +1,12 @@
-use alloc::prelude::*;
-use alloc::boxed::Box;
-use alloc::collections::btree_map::BTreeMap;
-use core::ptr::NonNull;
-use core::cell::RefCell;
-use lazy_static::lazy_static;
-
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, format, prelude::*};
 use core::any::Any;
-
+use core::{cell::RefCell, ptr::NonNull};
+use lazy_static::lazy_static;
 use spin::Mutex;
 
 lazy_static! {
     pub static ref DEVICE_MANAGER: Mutex<DeviceManager> = Mutex::new(DeviceManager {
-        devices: BTreeMap::new(),
+        devices: BTreeMap::new()
     });
 }
 
@@ -29,7 +24,11 @@ pub struct DeviceManager {
 }
 
 impl DeviceManager {
-    pub fn register_device(&mut self, name: &'static str, dev: Box<dyn Device + Sync + Send>) -> Result<(), String> {
+    pub fn register_device(
+        &mut self,
+        name: &'static str,
+        dev: Box<dyn Device + Sync + Send>,
+    ) -> Result<(), String> {
         if self.devices.contains_key(name) {
             return Err(format!("Device {} already registered.", name));
         }
@@ -37,12 +36,18 @@ impl DeviceManager {
         Ok(())
     }
 
-    pub fn get_device(&mut self, name: &'static str) -> Option<&Mutex<Box<dyn Device + Sync + Send>>> {
+    pub fn get_device(
+        &mut self,
+        name: &'static str,
+    ) -> Option<&Mutex<Box<dyn Device + Sync + Send>>> {
         let dev = self.devices.get(name).unwrap();
         Some(dev)
     }
 
-    pub fn with_device_cast<T, D: 'static>(&mut self, dev: &str, f: T) where T: Fn(&mut D) {
+    pub fn with_device_cast<T, D: 'static>(&mut self, dev: &str, f: T)
+    where
+        T: Fn(&mut D),
+    {
         let mut boxed = self.devices.get(dev).unwrap().lock();
         let dev = boxed.as_any().downcast_mut::<D>().unwrap();
         f(dev);

@@ -1,27 +1,18 @@
-use bootloader::bootinfo::{
-    BootInfo,
-    MemoryRegion,
-    MemoryRegionType,
-};
-use x86_64::{
-    PhysAddr,
-    structures::paging::PageTableFlags,
-};
-use linked_list_allocator::LockedHeap;
 use crate::paging::PAGING;
+use bootloader::bootinfo::{BootInfo, MemoryRegion, MemoryRegionType};
+use linked_list_allocator::LockedHeap;
+use x86_64::{structures::paging::PageTableFlags, PhysAddr};
 
 /// Find a memory region suitable for the heap
 pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
-
     // Initialize the memory region to None
     let mut found_region: Option<&MemoryRegion> = None;
 
-    let size = |region: &MemoryRegion|
-        (region.range.end_addr() - region.range.start_addr()) as usize;
+    let size =
+        |region: &MemoryRegion| (region.range.end_addr() - region.range.start_addr()) as usize;
 
     // Iterate over all memory regions
     for region in bootinfo.memory_map.iter() {
-
         // Test whether the region is usable
         if region.region_type != MemoryRegionType::Usable {
             continue;
@@ -29,7 +20,6 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
 
         // Match on the region
         match found_region {
-
             // Use this new region if it's the first one
             None => found_region = Some(region),
 
@@ -55,7 +45,6 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
 
 /// Map the heap memory region and initialize the heap allocator
 pub fn map_heap(allocator: &LockedHeap, start: u64, end: u64, size: usize) {
-
     // Print information about the heap memory region
     /*println!(
         "[heap] start: 0x{:08x}; end: 0x{:08x}; size: 0x{:08x}",
