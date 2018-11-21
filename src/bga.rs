@@ -1,9 +1,9 @@
-use core::ptr::Unique;
-use lazy_static::lazy_static;
+use alloc::boxed::*;
 use alloc::prelude::*;
 use alloc::slice;
-use alloc::boxed::*;
 use alloc::vec;
+use core::ptr::Unique;
+use lazy_static::lazy_static;
 use rlibc::memcpy;
 
 use crate::ansi::{Ansi, AnsiEscape};
@@ -26,12 +26,12 @@ const VBE_DISPI_LFB_ENABLED: u16 = 64;
 const VBE_DISPI_NOCLEAR: u16 = 128;
 
 lazy_static! {
-  static ref BGA_SIGNATURE: PCIFind = PCIFind::new(0x1234, 0x1111);
-  static ref DEFAULT_VIDEO_MODE: VideoMode = VideoMode {
-    width: 1280,
-    height: 720,
-    bpp: 32
-  };
+    static ref BGA_SIGNATURE: PCIFind = PCIFind::new(0x1234, 0x1111);
+    static ref DEFAULT_VIDEO_MODE: VideoMode = VideoMode {
+        width: 1280,
+        height: 720,
+        bpp: 32
+    };
 }
 
 pub static FONT: &'static [u8] = include_bytes!("unifont.font");
@@ -112,7 +112,13 @@ impl<'a> TerminalDriver<'a> {
                 if self.x >= self.provider.get_width() {
                     self.new_line();
                 }
-                self.provider.draw_char(self.x * self.provider.get_char_width(), self.y * self.provider.get_char_height(), c, self.fg, self.bg);
+                self.provider.draw_char(
+                    self.x * self.provider.get_char_width(),
+                    self.y * self.provider.get_char_height(),
+                    c,
+                    self.fg,
+                    self.bg,
+                );
                 self.x += 1;
             }
         }
@@ -148,7 +154,10 @@ impl<'a> core::fmt::Write for TerminalDriver<'a> {
     }
 }
 
-impl<'a, T> TerminalProvider for VideoDevice<'a, T> where T: GraphicsProvider {
+impl<'a, T> TerminalProvider for VideoDevice<'a, T>
+where
+    T: GraphicsProvider,
+{
     fn get_width(&self) -> usize {
         self.mode.width / 8
     }
@@ -175,9 +184,13 @@ impl<'a, T> TerminalProvider for VideoDevice<'a, T> where T: GraphicsProvider {
                     let row_data = FONT[font_i + row];
                     for col in 0..8 {
                         if row_data >> (7 - col) & 1 == 1 {
-                            unsafe { *((dst + col * 4) as *mut u32) = fg; }
+                            unsafe {
+                                *((dst + col * 4) as *mut u32) = fg;
+                            }
                         } else {
-                            unsafe { *((dst + col * 4) as *mut u32) = bg; }
+                            unsafe {
+                                *((dst + col * 4) as *mut u32) = bg;
+                            }
                         }
                     }
                     dst += self.mode.width * 4;
@@ -187,13 +200,19 @@ impl<'a, T> TerminalProvider for VideoDevice<'a, T> where T: GraphicsProvider {
     }
 }
 
-pub struct VideoDevice<'a, T> where T: GraphicsProvider {
+pub struct VideoDevice<'a, T>
+where
+    T: GraphicsProvider,
+{
     pub provider: &'a T,
     pub mode: VideoMode,
     pub buffer: Vec<u32>,
 }
 
-impl<'a, T> VideoDevice<'a, T> where T: GraphicsProvider {
+impl<'a, T> VideoDevice<'a, T>
+where
+    T: GraphicsProvider,
+{
     pub fn new(provider: &'a T, mode: &VideoMode) -> VideoDevice<'a, T> {
         Self {
             provider,
@@ -245,7 +264,9 @@ impl BochsGraphicsAdapter {
         let mmio_bar = dev.get_bar(2);
         let mmio = mmio_bar.addr();
 
-        fb_bar.identity_map().expect("Unable to map BGA framebuffer!");
+        fb_bar
+            .identity_map()
+            .expect("Unable to map BGA framebuffer!");
         mmio_bar.identity_map().expect("Unable to map BGA mmio!");
 
         BochsGraphicsAdapter {

@@ -45,7 +45,6 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
 
 /// Map the heap memory region and initialize the heap allocator
 pub fn map_heap(allocator: &LockedHeap, start: u64, end: u64, size: usize) {
-
     // Identity map the heap memory region
     PAGING.lock().identity_map(
         PhysAddr::new(start),

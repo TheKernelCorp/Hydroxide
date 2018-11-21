@@ -51,7 +51,6 @@
 #![feature(alloc)]
 #![feature(extern_crate_item_prelude)]
 #![feature(box_syntax)]
-
 #![feature(raw_vec_internals)]
 
 //
@@ -65,13 +64,13 @@
 // imports are not there.
 //
 
+extern crate bitflags;
 extern crate bootloader;
 extern crate linked_list_allocator;
+extern crate pc_keyboard;
 extern crate pic8259_simple;
 extern crate spin;
 extern crate x86_64;
-extern crate pc_keyboard;
-extern crate bitflags;
 
 #[macro_use]
 extern crate alloc;
@@ -293,19 +292,26 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             let mut term = TerminalDriver::new(&mut video);
             Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
             Write::write_str(&mut term, "This should fail! [\x1b[31mFAIL\x1b[0m]\n");
-            Write::write_str(&mut term, "\x1b[44mThis simulates a dark BSOD as we have no light colors :(\n");
+            Write::write_str(
+                &mut term,
+                "\x1b[44mThis simulates a dark BSOD as we have no light colors :(\n",
+            );
 
             video.flush();
             Some(dev)
         }
         Err(err) => {
-            println!("{}
-            ", err);
+            println!(
+                "{}
+            ",
+                err
+            );
             None
         }
-    }.unwrap();
+    }
+    .unwrap();
 
-// Idle
+    // Idle
     loop {
         x86_64::instructions::hlt();
     }
@@ -314,8 +320,11 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 fn print_post_status() {
     match CMOS::read_post_data() {
         Some(data) => {
-            println!("[post] power supply status: {}
-            ", data.power_supply_status());
+            println!(
+                "[post] power supply status: {}
+            ",
+                data.power_supply_status()
+            );
             println!(
                 "[post] cmos checksum status: {}
             ",
@@ -331,14 +340,26 @@ fn print_post_status() {
             ",
                 data.memory_match_status()
             );
-            println!("[post] drive health status: {}
-            ", data.drive_status());
-            println!("[post] time status: {}
-            ", data.time_status());
-            println!("[post] adapter init status: {}
-            ", data.adapter_init_status());
-            println!("[post] adapter status: {}
-            ", data.adapter_status());
+            println!(
+                "[post] drive health status: {}
+            ",
+                data.drive_status()
+            );
+            println!(
+                "[post] time status: {}
+            ",
+                data.time_status()
+            );
+            println!(
+                "[post] adapter init status: {}
+            ",
+                data.adapter_init_status()
+            );
+            println!(
+                "[post] adapter status: {}
+            ",
+                data.adapter_status()
+            );
         }
         None => println!("[post] unable to fetch POST information."),
     };
@@ -360,17 +381,20 @@ fn panic(info: &PanicInfo) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-        .as_any()
-        .downcast_mut::<crate::vgaterm::TerminalDevice>()
-        .unwrap()
-        .clear();
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!(" * **KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
     }
     if let Some(message) = info.message() {
-        println!("    {}
-            ", message);
+        println!(
+            "    {}
+            ",
+            message
+        );
     } else {
         println!("Unknown cause.");
     }
@@ -389,10 +413,10 @@ pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-        .as_any()
-        .downcast_mut::<crate::vgaterm::TerminalDevice>()
-        .unwrap()
-        .clear();
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!(" * **OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();

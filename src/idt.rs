@@ -1,9 +1,5 @@
 use lazy_static::lazy_static;
-use x86_64::structures::idt::{
-    ExceptionStackFrame,
-    InterruptDescriptorTable,
-    PageFaultErrorCode,
-};
+use x86_64::structures::idt::{ExceptionStackFrame, InterruptDescriptorTable, PageFaultErrorCode};
 
 //
 // Constants
@@ -20,8 +16,7 @@ lazy_static! {
         let mut idt = InterruptDescriptorTable::new();
         idt.breakpoint.set_handler_fn(breakpoint_handler);
         unsafe {
-            idt.page_fault
-                .set_handler_fn(page_fault_handler);
+            idt.page_fault.set_handler_fn(page_fault_handler);
             idt.double_fault
                 .set_handler_fn(double_fault_handler)
                 .set_stack_index(crate::gdt::DOUBLE_FAULT_IST_INDEX);
@@ -48,7 +43,7 @@ extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut ExceptionStackFra
 
 extern "x86-interrupt" fn page_fault_handler(
     stack_frame: &mut ExceptionStackFrame,
-    error: PageFaultErrorCode
+    error: PageFaultErrorCode,
 ) {
     println!("*** PAGE FAULT\n{:#?}\n{:#?}", stack_frame, error);
     loop {}
