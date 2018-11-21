@@ -33,7 +33,6 @@ impl Allocator {
 
     /// Allocate a physical memory frame
     pub fn allocate_frame(&mut self, region_type: MemoryRegionType) -> Option<PhysFrame> {
-
         // Try to find an existing region of the same type that can be enlarged
         let mut iter = self.memory_map.iter_mut().peekable();
         while let Some(region) = iter.next() {
@@ -42,18 +41,20 @@ impl Allocator {
                     if next.range.start_frame_number == region.range.end_frame_number
                         && next.region_type == MemoryRegionType::Usable
                         && !next.range.is_empty()
-                        {
-                            let frame = Allocator::phys_range(region.range).end;
-                            region.range.end_frame_number += 1;
-                            iter.next().unwrap().range.start_frame_number += 1;
-                            return Some(frame);
-                        }
+                    {
+                        let frame = Allocator::phys_range(region.range).end;
+                        region.range.end_frame_number += 1;
+                        iter.next().unwrap().range.start_frame_number += 1;
+                        return Some(frame);
+                    }
                 }
             }
         }
 
         fn split_usable_region<'a, I>(iter: &mut I) -> Option<(PhysFrame, PhysFrameRange)>
-            where I: Iterator<Item=&'a mut MemoryRegion> {
+        where
+            I: Iterator<Item = &'a mut MemoryRegion>,
+        {
             for region in iter {
                 if region.region_type != MemoryRegionType::Usable {
                     continue;
@@ -158,10 +159,10 @@ impl<'a> FrameAllocator<Size4KiB> for Allocator {
 }
 
 lazy_static! {
-  pub static ref PAGING: Mutex<Paging> = Mutex::new(Paging {
-    allocator: None,
-    page_table: None,
-  });
+    pub static ref PAGING: Mutex<Paging> = Mutex::new(Paging {
+        allocator: None,
+        page_table: None,
+    });
 }
 
 /// Paging
@@ -189,33 +190,37 @@ impl Paging {
         flags: PageTableFlags,
         inclusive: bool,
     ) {
-
         // Unwrap the page table
-        let table = self.page_table.as_mut()
+        let table = self
+            .page_table
+            .as_mut()
             .expect("Unable to unwrap page table. Initialize paging first!");
 
         // Unwrap the page allocator
-        let alloc = self.allocator.as_mut()
+        let alloc = self
+            .allocator
+            .as_mut()
             .expect("Unable to unwrap memory allocator. Initialize paging first!");
 
         // Map the inclusive range
         if inclusive {
             let range = PhysFrame::<Size4KiB>::range_inclusive(
-                PhysFrame::containing_address(start),
-                PhysFrame::containing_address(end),
+                PhysFrame::from_start_address(start).unwrap(),
+                PhysFrame::from_start_address(end).unwrap(),
             );
             for frame in range {
-                table.identity_map(frame, flags, alloc).expect("Unable to map frame!").flush();
+                table.identity_map(frame, flags, alloc).unwrap().flush();
             }
         }
-
-        // Map the exclusive range else {
-        let range = PhysFrame::<Size4KiB>::range(
-            PhysFrame::containing_address(start),
-            PhysFrame::containing_address(end),
-        );
-        for frame in range {
-            table.identity_map(frame, flags, alloc).expect("Unable to map frame!").flush();
+        // Map the exclusive range
+        else {
+            let range = PhysFrame::<Size4KiB>::range(
+                PhysFrame::from_start_address(start).unwrap(),
+                PhysFrame::from_start_address(end).unwrap(),
+            );
+            for frame in range {
+                table.identity_map(frame, flags, alloc).unwrap().flush();
+            }
         }
     }
 }

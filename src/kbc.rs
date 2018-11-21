@@ -1,8 +1,8 @@
+use lazy_static::lazy_static;
 use spin::Mutex;
 use x86_64::instructions::port::Port;
-use lazy_static::lazy_static;
 
-const KBC_DATA : u16 = 0x60;
+const KBC_DATA: u16 = 0x60;
 const KBC_STATUS: u16 = 0x64;
 
 //
@@ -22,7 +22,6 @@ lazy_static! {
 // Keyboard Controller
 pub struct KBC;
 impl KBC {
-
     /// Wait for the KBC to become ready
     pub unsafe fn wait_ready() {
         KBC::with_ports(|data, status| {
@@ -46,8 +45,9 @@ impl KBC {
 
     /// Provide a closure with read-only access to KBC ports
     pub fn with_ports<F, R>(f: F) -> R
-        where F: Fn(&Port<u8>, &Port<u8>) -> R {
-
+    where
+        F: Fn(&Port<u8>, &Port<u8>) -> R,
+    {
         // Lock ports
         let data_port = &*KBC_DATA_PORT.lock();
         let status_port = &*KBC_STATUS_PORT.lock();
@@ -58,8 +58,9 @@ impl KBC {
 
     /// Provide a closure with read-write access to KBC ports
     pub fn with_ports_mut<F, R>(mut f: F) -> R
-        where F: FnMut(&mut Port<u8>, &mut Port<u8>) -> R {
-
+    where
+        F: FnMut(&mut Port<u8>, &mut Port<u8>) -> R,
+    {
         // Lock ports
         let data_port = &mut *KBC_DATA_PORT.lock();
         let status_port = &mut *KBC_STATUS_PORT.lock();

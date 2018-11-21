@@ -48,11 +48,8 @@
 // and helpful messages in case of kernel panics.
 //
 #![feature(panic_info_message)]
-
 #![feature(alloc)]
-
 #![feature(extern_crate_item_prelude)]
-
 #![feature(box_syntax)]
 
 #![feature(raw_vec_internals)]
@@ -86,7 +83,6 @@ extern crate alloc;
 //
 
 use bootloader::bootinfo::BootInfo;
-
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
@@ -97,15 +93,25 @@ use linked_list_allocator::LockedHeap;
 //
 
 macro_rules! print {
-($( $ arg: tt)* ) => {
-core::fmt::Write::write_fmt( ( * crate::hal::DEVICE_MANAGER.lock().get_device("tty0").unwrap().lock()).as_any().downcast_mut::< crate::vgaterm::TerminalDevice > ().unwrap(), format_args ! ( $ ( $ arg) *)).unwrap();
-};
+    ($($arg:tt)*) => {
+        core::fmt::Write::write_fmt(
+            (*crate::hal::DEVICE_MANAGER
+                .lock()
+                .get_device("tty0")
+                .unwrap()
+                .lock()
+            ).as_any()
+            .downcast_mut::<crate::vgaterm::TerminalDevice>()
+            .unwrap(),
+            format_args!($($arg)*)
+        ).unwrap();
+    };
 }
 
 macro_rules! println {
-() => (print ! ("\n"));
-( $ fmt: expr) => (print! (concat ! ( $ fmt, "\n")));
-( $ fmt: expr, $( $ arg: tt) * ) => (print ! (concat ! ( $ fmt, "\n"), $ ( $ arg) * ));
+    () => (print ! ("\n"));
+    ($fmt:expr) => (print!(concat!($fmt, "\n")));
+    ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
 }
 
 //
@@ -125,19 +131,16 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Global Descriptor Table
 mod gdt;
-
 use self::gdt::GDT;
 
 // Interrupt Descriptor Table
 // Task State Segment
 mod idt;
-
 use self::idt::IDT;
 
 // Intel 8259
 // Programmable Interrupt Controller
 mod pic;
-
 use self::pic::PIC8259;
 
 // Intel 825x
@@ -146,7 +149,6 @@ mod pit;
 
 // VGA Terminal Screen Buffer
 mod vgaterm;
-
 use self::vgaterm::{TerminalDevice, VGA_PTR};
 
 // Intel 8042
@@ -155,17 +157,14 @@ mod kbc;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
-
 use self::ps2kbd::PS2Keyboard;
 
 // Page Allocator
 mod paging;
-
 use self::paging::Paging;
 
 // Heap Allocator
 mod heap;
-
 use self::heap::{find_heap_space, map_heap};
 
 // Peripheral Component Interconnect
@@ -178,20 +177,14 @@ use self::bga::{BochsGraphicsAdapter, VideoDevice};
 
 // CMOS
 mod cmos;
-
-use self::cmos::{
-    CMOS,
-    POSTData,
-};
+use self::cmos::{POSTData, CMOS};
 
 // Hardware Abstraction Layer
 mod hal;
-
 use self::hal::DEVICE_MANAGER;
 
 // Serial Bus
 mod serial;
-
 use self::serial::{SerialDevice, SerialPort};
 
 //
@@ -203,31 +196,34 @@ use self::serial::{SerialDevice, SerialPort};
 #[no_mangle]
 #[allow(clippy::empty_loop)]
 pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
-
-// Initialize GDT and IDT
+    // Initialize GDT and IDT
     GDT::init();
     IDT::init();
 
-// Initialize paging and heap allocation
+    // Initialize paging and heap allocation
     let (heap_start, heap_end) = find_heap_space(bootinfo);
     Paging::init(bootinfo);
-    map_heap(&ALLOCATOR, heap_start, heap_end, (heap_end - heap_start) as usize);
+    map_heap(
+        &ALLOCATOR,
+        heap_start,
+        heap_end,
+        (heap_end - heap_start) as usize,
+    );
 
+    // Initialize devices
     SerialDevice::init("com1", SerialPort::COM1);
     TerminalDevice::init("tty0", VGA_PTR);
 
-    use core::ptr::Unique;
-
-// Print POST status
+    // Print POST status
     print_post_status();
 
-// Remap the PIC
+    // Remap the PIC
     PIC8259::init();
 
-// Enable interrupts
+    // Enable interrupts
     x86_64::instructions::interrupts::enable();
 
-// Initialize the PS/2 keyboard
+    // Initialize the PS/2 keyboard
     PS2Keyboard::init();
 
     // Print the current date and time
@@ -238,7 +234,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
         time = datetime.as_time(),
     );
 
-// Say hello
+    // Say hello
     println!("Hello from Hydroxide.");
 
     // Detect a Bochs Graphics Adapter
@@ -309,9 +305,18 @@ fn print_post_status() {
     match CMOS::read_post_data() {
         Some(data) => {
             println!("[post] power supply status: {}", data.power_supply_status());
-            println!("[post] cmos checksum status: {}", data.cmos_checksum_status());
-            println!("[post] cmos config matches: {}", data.configuration_match_status());
-            println!("[post] cmos memory amount matches: {}", data.memory_match_status());
+            println!(
+                "[post] cmos checksum status: {}",
+                data.cmos_checksum_status()
+            );
+            println!(
+                "[post] cmos config matches: {}",
+                data.configuration_match_status()
+            );
+            println!(
+                "[post] cmos memory amount matches: {}",
+                data.memory_match_status()
+            );
             println!("[post] drive health status: {}", data.drive_status());
             println!("[post] time status: {}", data.time_status());
             println!("[post] adapter init status: {}", data.adapter_init_status());
@@ -332,7 +337,15 @@ fn print_post_status() {
 #[panic_handler]
 #[allow(clippy::empty_loop)]
 fn panic(info: &PanicInfo) -> ! {
-    (*crate::hal::DEVICE_MANAGER.lock().get_device("tty0").unwrap().lock()).as_any().downcast_mut::<crate::vgaterm::TerminalDevice>().unwrap().clear();
+    (*crate::hal::DEVICE_MANAGER
+        .lock()
+        .get_device("tty0")
+        .unwrap()
+        .lock())
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!("*** KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
@@ -352,7 +365,15 @@ fn panic(info: &PanicInfo) -> ! {
 #[alloc_error_handler]
 #[no_mangle]
 pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
-    (*crate::hal::DEVICE_MANAGER.lock().get_device("tty0").unwrap().lock()).as_any().downcast_mut::<crate::vgaterm::TerminalDevice>().unwrap().clear();
+    (*crate::hal::DEVICE_MANAGER
+        .lock()
+        .get_device("tty0")
+        .unwrap()
+        .lock())
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!("*** OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();

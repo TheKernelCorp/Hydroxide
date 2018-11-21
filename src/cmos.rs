@@ -1,7 +1,7 @@
+use bitflags::bitflags;
+use lazy_static::lazy_static;
 use spin::Mutex;
 use x86_64::instructions::port::Port;
-use lazy_static::lazy_static;
-use bitflags::bitflags;
 
 const CMOS_ADDR: u16 = 0x70;
 const CMOS_DATA: u16 = 0x71;
@@ -59,7 +59,6 @@ macro_rules! impl_post_status {
 }
 
 impl POSTData {
-
     impl_post_status!(
         fn adapter_status <- Self::ADAPTER_TIMEOUT_CHECK, [
             0 => POSTResult::Ok,
@@ -144,7 +143,6 @@ pub struct CMOSTime {
 }
 
 impl CMOSDateTime {
-
     /// Convert the CMOSDateTime into a CMOSDate
     pub fn as_date(&self) -> CMOSDate {
         CMOSDate {
@@ -207,7 +205,6 @@ impl core::fmt::Display for CMOSTime {
 
 pub struct CMOS;
 impl CMOS {
-
     #[inline(always)]
     fn bcd_to_dec(bcd: u8) -> u8 {
         (bcd & 0x0F) + 10 * ((bcd & 0xF0) >> 4)
@@ -235,7 +232,7 @@ impl CMOS {
                 year,
                 century,
             }
-        } 
+        }
     }
 
     /// Read POST status data
@@ -264,8 +261,9 @@ impl CMOS {
 
     /// Provide a closure with read-only access to CMOS ports
     fn with_ports<F, R>(f: F) -> R
-        where F: Fn(&Port<u8>, &Port<u8>) -> R {
-
+    where
+        F: Fn(&Port<u8>, &Port<u8>) -> R,
+    {
         // Lock ports
         let addr_port = &*CMOS_PORT_ADDR.lock();
         let data_port = &*CMOS_PORT_DATA.lock();
@@ -276,8 +274,9 @@ impl CMOS {
 
     /// Provide a closure with read-write access to CMOS ports
     pub fn with_ports_mut<F, R>(mut f: F) -> R
-        where F: FnMut(&mut Port<u8>, &mut Port<u8>) -> R {
-
+    where
+        F: FnMut(&mut Port<u8>, &mut Port<u8>) -> R,
+    {
         // Lock ports
         let addr_port = &mut *CMOS_PORT_ADDR.lock();
         let data_port = &mut *CMOS_PORT_DATA.lock();
