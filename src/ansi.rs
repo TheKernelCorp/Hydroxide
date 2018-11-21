@@ -16,7 +16,8 @@ pub static COLORS: &'static [u8] = include_bytes!("colors.bin");
 
 impl Ansi {
     pub fn color(color: u8) -> u32 {
-        let colors: &'static [u32] = unsafe { slice::from_raw_parts(COLORS.as_ptr() as *const _, COLORS.len()) };
+        let colors: &'static [u32] =
+            unsafe { slice::from_raw_parts(COLORS.as_ptr() as *const _, COLORS.len()) };
         colors[color as usize]
     }
 
@@ -40,7 +41,7 @@ impl Ansi {
             1...8 => (None, 0),
             30...37 => (Some(AnsiEscape::Foreground(num - 30)), i),
             40...47 => (Some(AnsiEscape::Background(num - 40)), i),
-            _ => (None, 0)
+            _ => (None, 0),
         }
     }
 }
