@@ -91,19 +91,27 @@ use linked_list_allocator::LockedHeap;
 //
 //
 
+macro_rules! device_write {
+    ($dev:expr, $($arg:tt)*) => {{
+        let fmt = format!($($arg)*);
+        (**crate::hal::DEVICE_MANAGER
+            .lock()
+            .get_device($dev)
+            .unwrap()
+            .lock())
+        .write_bytes(0, fmt.as_bytes(), fmt.len());
+    }};
+}
+
+macro_rules! log {
+    (debug: $($arg:tt)*) => {
+        device_write!("com0", $($arg)*);
+    }
+}
+
 macro_rules! print {
     ($($arg:tt)*) => {
-        core::fmt::Write::write_fmt(
-            (*crate::hal::DEVICE_MANAGER
-                .lock()
-                .get_device("tty0")
-                .unwrap()
-                .lock()
-            ).as_any()
-            .downcast_mut::<crate::vgaterm::TerminalDevice>()
-            .unwrap(),
-            format_args!($($arg)*)
-        ).unwrap();
+        device_write!("tty0", $($arg)*);
     };
 }
 
@@ -320,46 +328,23 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 fn print_post_status() {
     match CMOS::read_post_data() {
         Some(data) => {
+            println!("[post] power supply status: {}", data.power_supply_status());
             println!(
-                "[post] power supply status: {}
-            ",
-                data.power_supply_status()
-            );
-            println!(
-                "[post] cmos checksum status: {}
-            ",
+                "[post] cmos checksum status: {}",
                 data.cmos_checksum_status()
             );
             println!(
-                "[post] cmos config matches: {}
-            ",
+                "[post] cmos config matches: {}",
                 data.configuration_match_status()
             );
             println!(
-                "[post] cmos memory amount matches: {}
-            ",
+                "[post] cmos memory amount matches: {}",
                 data.memory_match_status()
             );
-            println!(
-                "[post] drive health status: {}
-            ",
-                data.drive_status()
-            );
-            println!(
-                "[post] time status: {}
-            ",
-                data.time_status()
-            );
-            println!(
-                "[post] adapter init status: {}
-            ",
-                data.adapter_init_status()
-            );
-            println!(
-                "[post] adapter status: {}
-            ",
-                data.adapter_status()
-            );
+            println!("[post] drive health status: {}", data.drive_status());
+            println!("[post] time status: {}", data.time_status());
+            println!("[post] adapter init status: {}", data.adapter_init_status());
+            println!("[post] adapter status: {}", data.adapter_status());
         }
         None => println!("[post] unable to fetch POST information."),
     };
