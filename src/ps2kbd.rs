@@ -1,16 +1,11 @@
 #![allow(dead_code)]
 
-use x86_64::structures::idt::ExceptionStackFrame;
-use spin::Mutex;
-use lazy_static::lazy_static;
-use pc_keyboard::{
-    Keyboard,
-    DecodedKey,
-    ScancodeSet1,
-    layouts::Us104Key,
-};
-use crate::pic::PIC8259;
 use crate::kbc::KBC;
+use crate::pic::PIC8259;
+use lazy_static::lazy_static;
+use pc_keyboard::{layouts::Us104Key, DecodedKey, Keyboard, ScancodeSet1};
+use spin::Mutex;
+use x86_64::structures::idt::ExceptionStackFrame;
 
 //
 // Global state
@@ -19,7 +14,6 @@ use crate::kbc::KBC;
 lazy_static! {
     pub static ref KEYBOARD: Mutex<Keyboard<Us104Key, ScancodeSet1>> =
         Mutex::new(Keyboard::new(Us104Key, ScancodeSet1));
-    
     pub static ref KEYBOARD_INITIALIZED: Mutex<bool> = Mutex::new(false);
 }
 
@@ -71,11 +65,9 @@ const KBD_COM_SELF_TEST: u8 = 0xFF;
 /// Generic PS/2 keyboard
 pub struct PS2Keyboard;
 impl PS2Keyboard {
-
     /// Initialize the PS/2 keyboard
     pub fn init() {
         unsafe {
-
             // Wait till the KBC is ready
             KBC::wait_ready();
 
@@ -95,7 +87,7 @@ impl PS2Keyboard {
             KBC::write_byte(KBD_COM_SCAN_ON);
             KBC::wait_ready();
         }
-        
+
         // Mark the keyboard as initialized
         *KEYBOARD_INITIALIZED.lock() = true;
     }
@@ -111,7 +103,7 @@ impl PS2Keyboard {
             KBD_RES_ST_FAIL_A | KBD_RES_ST_FAIL_B => println!("[ps2kbd] error: self test failed"),
             KBD_RES_RESEND if !resent => PS2Keyboard::_run_self_test(true),
             KBD_RES_RESEND => println!("[ps2kbd] error: unable to run self test"),
-            b => println!("[ps2kbd] error: invalid response: {:x}", b)
+            b => println!("[ps2kbd] error: invalid response: {:x}", b),
         }
     }
 
@@ -160,16 +152,16 @@ impl PS2Keyboard {
                     0x3f => Some(3),
                     _ => None,
                 }
-            },
+            }
             KBD_RES_RESEND if !resent => PS2Keyboard::_get_scan_table(true),
             KBD_RES_RESEND => {
                 println!("[ps2kbd] error: unable to get scan table");
                 None
-            },
+            }
             resp => {
                 println!("[ps2kbd] error: invalid response: 0x{:x}", resp);
                 None
-            },
+            }
         }
     }
 }
@@ -188,21 +180,18 @@ fn read_next_key() {
             } else {
                 // println!("[ps2kbd] Key event is none: {:?}; {:?}", event.code, event.state);
             }
-        },
+        }
         Ok(None) => (),
         Err(_) => (),
     };
 }
 
 pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut ExceptionStackFrame) {
-
     // Is the keyboard already initialized?
     if *KEYBOARD_INITIALIZED.lock() {
-
         // Process the next key
         read_next_key();
     } else {
-
         // Discard the key
         unsafe {
             KBC::read_byte();
@@ -211,8 +200,7 @@ pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut ExceptionStack
 
     // Notify the PIC
     unsafe {
-        PIC8259
-            ::get_chained_pics()
+        PIC8259::get_chained_pics()
             .lock()
             .notify_end_of_interrupt(crate::idt::INT_KBD);
     }

@@ -12,9 +12,8 @@ pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
 // Static PIC structure
 //
 
-static PICS: Mutex<ChainedPics> = Mutex::new(
-    unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) }
-);
+static PICS: Mutex<ChainedPics> =
+    Mutex::new(unsafe { ChainedPics::new(PIC_1_OFFSET, PIC_2_OFFSET) });
 
 //
 // Exports
@@ -23,11 +22,10 @@ static PICS: Mutex<ChainedPics> = Mutex::new(
 /// Intel 8259-compatible PIC
 pub struct PIC8259;
 impl PIC8259 {
-
     /// Remap the PIC
     pub fn init() {
         unsafe {
-            PICS.lock().initialize();   
+            PICS.lock().initialize();
         }
     }
 

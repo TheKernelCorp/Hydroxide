@@ -1,10 +1,10 @@
+use alloc::boxed::Box;
+use core::ptr;
+use core::ptr::NonNull;
 use core::ptr::Unique;
 use lazy_static::lazy_static;
-use x86_64::instructions::port::Port;
-use core::ptr::NonNull;
 use spin::Mutex;
-use core::ptr;
-use alloc::boxed::Box;
+use x86_64::instructions::port::Port;
 
 use crate::hal::DEVICE_MANAGER;
 
@@ -16,15 +16,21 @@ const VGA_WIDTH: usize = 80;
 const VGA_HEIGHT: usize = 25;
 
 macro_rules! color {
-    ($fc:expr, $bc:expr) => (bc << 4 | fc)
+    ($fc:expr, $bc:expr) => {
+        bc << 4 | fc
+    };
 }
 
 macro_rules! chattr {
-    ($b:expr, $c:expr) => (u16::from($c) << 8 | u16::from($b));
+    ($b:expr, $c:expr) => {
+        u16::from($c) << 8 | u16::from($b)
+    };
 }
 
 macro_rules! offset {
-    ($x:expr, $y:expr) => ($y * VGA_WIDTH + $x)
+    ($x:expr, $y:expr) => {
+        $y * VGA_WIDTH + $x
+    };
 }
 
 type TerminalBuffer = Unique<[u16; VGA_SIZE]>;
@@ -45,7 +51,10 @@ impl TerminalDevice {
             buf: Unique::new(ptr as *mut _).unwrap(),
         };
         term.clear();
-        DEVICE_MANAGER.lock().register_device(name, box term).unwrap();
+        DEVICE_MANAGER
+            .lock()
+            .register_device(name, box term)
+            .unwrap();
         Ok(())
     }
 
@@ -53,7 +62,7 @@ impl TerminalDevice {
         let chr = chattr!(b' ', self.color);
         let buf = unsafe { self.buf.as_mut() };
         #[allow(clippy::needless_range_loop)]
-            for i in 0..VGA_SIZE {
+        for i in 0..VGA_SIZE {
             buf[i] = chr;
         }
         self.x = 0;
@@ -62,7 +71,6 @@ impl TerminalDevice {
 
     fn write_u8(&mut self, byte: u8) {
         match byte {
-
             // Carriage return
             b'\r' => self.x = 0,
 
