@@ -43,7 +43,7 @@ pub trait TerminalProvider {
     fn get_char_width(&self) -> usize;
     fn get_char_height(&self) -> usize;
 
-    fn draw_char(&mut self, x: usize, y: usize, character: char, color: u32);
+    fn draw_char(&mut self, x: usize, y: usize, character: char, fg: u32, bg: u32);
 }
 
 pub struct TerminalDriver<'a> {
@@ -51,6 +51,8 @@ pub struct TerminalDriver<'a> {
     y: usize,
     fg_def: u32,
     fg: u32,
+    bg_def: u32,
+    bg: u32,
     provider: &'a mut TerminalProvider,
 }
 
@@ -61,6 +63,8 @@ impl<'a> TerminalDriver<'a> {
             y: 0,
             fg_def: Ansi::color(7),
             fg: Ansi::color(7),
+            bg_def: Ansi::color(0),
+            bg: Ansi::color(0),
             provider,
         }
     }
@@ -78,12 +82,15 @@ impl<'a> TerminalDriver<'a> {
                         match Ansi::parse(&chars[i..]) {
                             (None, _) => {}
                             (Some(AnsiEscape::Reset), adv) => {
-                                let def = self.fg_def;
-                                self.fg = def;
+                                self.reset();
                                 i += adv;
                             }
                             (Some(AnsiEscape::Foreground(color)), adv) => {
                                 self.fg = Ansi::color(color);
+                                i += adv;
+                            }
+                            (Some(AnsiEscape::Background(color)), adv) => {
+                                self.bg = Ansi::color(color);
                                 i += adv;
                             }
                         }
@@ -94,6 +101,8 @@ impl<'a> TerminalDriver<'a> {
 
             i += 1;
         }
+
+        self.reset();
     }
 
     pub fn write_car(&mut self, c: char) {
@@ -103,14 +112,23 @@ impl<'a> TerminalDriver<'a> {
                 if self.x >= self.provider.get_width() {
                     self.new_line();
                 }
-                self.provider.draw_char(self.x * self.provider.get_char_width(), self.y * self.provider.get_char_height(), c, self.fg);
+                self.provider.draw_char(self.x * self.provider.get_char_width(), self.y * self.provider.get_char_height(), c, self.fg, self.bg);
                 self.x += 1;
             }
         }
     }
 
-    pub fn set_color(&mut self, color: u32) {
-        self.fg = color;
+    pub fn reset(&mut self) {
+        self.fg = self.fg_def;
+        self.bg = self.bg_def;
+    }
+
+    pub fn set_fg(&mut self, color: u32) {
+        self.fg_def = color;
+    }
+
+    pub fn set_bg(&mut self, color: u32) {
+        self.fg_def = color;
     }
 
     pub fn new_line(&mut self) {
@@ -147,7 +165,7 @@ impl<'a, T> TerminalProvider for VideoDevice<'a, T> where T: GraphicsProvider {
         16
     }
 
-    fn draw_char(&mut self, x: usize, y: usize, character: char, color: u32) {
+    fn draw_char(&mut self, x: usize, y: usize, character: char, fg: u32, bg: u32) {
         if x + 8 <= self.mode.width && y + 16 <= self.mode.height {
             let font_i = 16 * (character as usize);
             let mut dst = self.buffer.as_mut_ptr() as usize + (x + y * self.mode.width) * 4;
@@ -157,7 +175,9 @@ impl<'a, T> TerminalProvider for VideoDevice<'a, T> where T: GraphicsProvider {
                     let row_data = FONT[font_i + row];
                     for col in 0..8 {
                         if row_data >> (7 - col) & 1 == 1 {
-                            unsafe { *((dst + col * 4) as *mut u32) = color; }
+                            unsafe { *((dst + col * 4) as *mut u32) = fg; }
+                        } else {
+                            unsafe { *((dst + col * 4) as *mut u32) = bg; }
                         }
                     }
                     dst += self.mode.width * 4;

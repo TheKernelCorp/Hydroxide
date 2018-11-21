@@ -293,6 +293,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             let mut term = TerminalDriver::new(&mut video);
             Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
             Write::write_str(&mut term, "This should fail! [\x1b[31mFAIL\x1b[0m]\n");
+            Write::write_str(&mut term, "\x1b[44mThis simulates a dark BSOD as we have no light colors :(\n");
 
             video.flush();
             Some(dev)

@@ -6,6 +6,7 @@ pub enum ColorPlace {}
 #[derive(Debug)]
 pub enum AnsiEscape {
     Foreground(u8),
+    Background(u8),
     Reset,
 }
 
@@ -38,6 +39,7 @@ impl Ansi {
             0 => (Some(AnsiEscape::Reset), i),
             1...8 => (None, 0),
             30...37 => (Some(AnsiEscape::Foreground(num - 30)), i),
+            40...47 => (Some(AnsiEscape::Background(num - 40)), i),
             _ => (None, 0)
         }
     }
