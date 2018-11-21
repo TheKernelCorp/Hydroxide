@@ -21,27 +21,45 @@ impl Ansi {
         colors[color as usize]
     }
 
-    pub fn parse(chars: &[char]) -> (Option<AnsiEscape>, usize) {
+    pub fn parse(chars: &[char]) -> (Vec<Option<AnsiEscape>>, usize) {
         let mut i = 0;
-        let mut tmp = String::new();
+        let mut skip = 0;
+        let mut vec: Vec<Option<AnsiEscape>> = Vec::new();
 
-        loop {
-            match chars[i] {
-                'm' => break,
-                _ => {
-                    tmp.push(chars[i]);
-                    i += 1;
+        'outer: loop {
+            let mut end = false;
+            let mut tmp = String::new();
+            'inner: loop {
+                match chars[i] {
+                    'm' => {
+                        end = true;
+                        break 'inner;
+                    }
+                    ';' => {
+                        skip += 1;
+                        i += 1;
+                        break 'inner;
+                    }
+                    _ => {
+                        tmp.push(chars[i]);
+                        skip += 1;
+                        i += 1;
+                    }
                 }
+            }
+            let num = tmp.parse::<u8>().unwrap();
+            vec.push(match num {
+                0 => Some(AnsiEscape::Reset),
+                1...8 => None,
+                30...37 => Some(AnsiEscape::Foreground(num - 30)),
+                40...47 => Some(AnsiEscape::Background(num - 40)),
+                _ => None,
+            });
+            if end {
+                break 'outer;
             }
         }
 
-        let num = tmp.parse::<u8>().unwrap();
-        match num {
-            0 => (Some(AnsiEscape::Reset), i),
-            1...8 => (None, 0),
-            30...37 => (Some(AnsiEscape::Foreground(num - 30)), i),
-            40...47 => (Some(AnsiEscape::Background(num - 40)), i),
-            _ => (None, 0),
-        }
+        (vec, skip)
     }
 }

@@ -286,15 +286,15 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
             }
 
-            use crate::bga::{GraphicsProvider, TerminalDriver};
             use core::fmt::Write;
+            use crate::bga::{GraphicsProvider, TerminalDriver};
             let mut video = VideoDevice::new(&dev, &mode);
             let mut term = TerminalDriver::new(&mut video);
             Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
             Write::write_str(&mut term, "This should fail! [\x1b[31mFAIL\x1b[0m]\n");
             Write::write_str(
                 &mut term,
-                "\x1b[44mThis simulates a dark BSOD as we have no light colors :(\n",
+                "\x1b[44;37mThis simulates a dark BSOD as we have no light colors :(\n",
             );
 
             video.flush();

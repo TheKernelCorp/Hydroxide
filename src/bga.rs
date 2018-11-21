@@ -73,28 +73,30 @@ impl<'a> TerminalDriver<'a> {
         let chars: Vec<char> = s.chars().collect();
         let mut i = 0;
 
-        while i < chars.len() {
+        'outer: while i < chars.len() {
             match chars[i] {
                 '\x1b' => {
                     i += 1;
-                    if chars[i] == '[' {
-                        i += 1;
-                        match Ansi::parse(&chars[i..]) {
-                            (None, _) => {}
-                            (Some(AnsiEscape::Reset), adv) => {
+                    if i >= chars.len() || chars[i] != '[' {
+                        break 'outer;
+                    }
+                    i += 1;
+                    let (codes, skip) = Ansi::parse(&chars[i..]);
+                    for code in codes {
+                        match code {
+                            None => {}
+                            Some(AnsiEscape::Reset) => {
                                 self.reset();
-                                i += adv;
                             }
-                            (Some(AnsiEscape::Foreground(color)), adv) => {
+                            Some(AnsiEscape::Foreground(color)) => {
                                 self.fg = Ansi::color(color);
-                                i += adv;
                             }
-                            (Some(AnsiEscape::Background(color)), adv) => {
+                            Some(AnsiEscape::Background(color)) => {
                                 self.bg = Ansi::color(color);
-                                i += adv;
                             }
                         }
                     }
+                    i += skip;
                 }
                 _ => self.write_car(chars[i]),
             }
