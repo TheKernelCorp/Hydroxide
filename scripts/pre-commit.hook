@@ -1,0 +1,2 @@
+# This pre-commit hook runs cargo fmt before each commit.
+cargo fmt
