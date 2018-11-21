@@ -131,16 +131,19 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Global Descriptor Table
 mod gdt;
+
 use self::gdt::GDT;
 
 // Interrupt Descriptor Table
 // Task State Segment
 mod idt;
+
 use self::idt::IDT;
 
 // Intel 8259
 // Programmable Interrupt Controller
 mod pic;
+
 use self::pic::PIC8259;
 
 // Intel 825x
@@ -149,6 +152,7 @@ mod pit;
 
 // VGA Terminal Screen Buffer
 mod vgaterm;
+
 use self::vgaterm::{TerminalDevice, VGA_PTR};
 
 // Intel 8042
@@ -157,14 +161,17 @@ mod kbc;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
+
 use self::ps2kbd::PS2Keyboard;
 
 // Page Allocator
 mod paging;
+
 use self::paging::Paging;
 
 // Heap Allocator
 mod heap;
+
 use self::heap::{find_heap_space, map_heap};
 
 // Peripheral Component Interconnect
@@ -177,14 +184,17 @@ use self::bga::{BochsGraphicsAdapter, VideoDevice};
 
 // CMOS
 mod cmos;
+
 use self::cmos::{POSTData, CMOS};
 
 // Hardware Abstraction Layer
 mod hal;
+
 use self::hal::DEVICE_MANAGER;
 
 // Serial Bus
 mod serial;
+
 use self::serial::{SerialDevice, SerialPort};
 
 //
@@ -342,10 +352,10 @@ fn panic(info: &PanicInfo) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-    .as_any()
-    .downcast_mut::<crate::vgaterm::TerminalDevice>()
-    .unwrap()
-    .clear();
+        .as_any()
+        .downcast_mut::<crate::vgaterm::TerminalDevice>()
+        .unwrap()
+        .clear();
     println!("*** KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
@@ -370,10 +380,10 @@ pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-    .as_any()
-    .downcast_mut::<crate::vgaterm::TerminalDevice>()
-    .unwrap()
-    .clear();
+        .as_any()
+        .downcast_mut::<crate::vgaterm::TerminalDevice>()
+        .unwrap()
+        .clear();
     println!("*** OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();

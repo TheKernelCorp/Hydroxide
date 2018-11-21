@@ -41,19 +41,19 @@ impl Allocator {
                     if next.range.start_frame_number == region.range.end_frame_number
                         && next.region_type == MemoryRegionType::Usable
                         && !next.range.is_empty()
-                    {
-                        let frame = Allocator::phys_range(region.range).end;
-                        region.range.end_frame_number += 1;
-                        iter.next().unwrap().range.start_frame_number += 1;
-                        return Some(frame);
-                    }
+                        {
+                            let frame = Allocator::phys_range(region.range).end;
+                            region.range.end_frame_number += 1;
+                            iter.next().unwrap().range.start_frame_number += 1;
+                            return Some(frame);
+                        }
                 }
             }
         }
 
         fn split_usable_region<'a, I>(iter: &mut I) -> Option<(PhysFrame, PhysFrameRange)>
-        where
-            I: Iterator<Item = &'a mut MemoryRegion>,
+            where
+                I: Iterator<Item=&'a mut MemoryRegion>,
         {
             for region in iter {
                 if region.region_type != MemoryRegionType::Usable {
@@ -212,8 +212,7 @@ impl Paging {
                 table.identity_map(frame, flags, alloc).unwrap().flush();
             }
         }
-        // Map the exclusive range
-        else {
+            // Map the exclusive range else {
             let range = PhysFrame::<Size4KiB>::range(
                 PhysFrame::from_start_address(start).unwrap(),
                 PhysFrame::from_start_address(end).unwrap(),

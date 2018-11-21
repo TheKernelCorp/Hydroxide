@@ -45,6 +45,7 @@ lazy_static! {
 
 /// Global Descriptor Table
 pub struct GDT;
+
 impl GDT {
     // Initialize the GDT
     pub fn init() {
