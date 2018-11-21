@@ -197,6 +197,8 @@ mod serial;
 
 use self::serial::{SerialDevice, SerialPort};
 
+mod ansi;
+
 //
 //
 // Main entry point
@@ -289,21 +291,18 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             use core::fmt::Write;
             let mut video = VideoDevice::new(&dev, &mode);
             let mut term = TerminalDriver::new(&mut video);
-            Write::write_str(&mut term, "Hello World!\n");
-            term.set_color(get_col(255, 128, 255));
-            Write::write_str(&mut term, "Can do full RGB colors!\n");
-            term.set_color(0xAAAAAAAA);
-            Write::write_str(&mut term, "That was pink, but this is gray!\n");
+            Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
+            Write::write_str(&mut term, "This should fail! [\x1b[31mFAIL\x1b[0m]\n");
 
             video.flush();
             Some(dev)
         }
         Err(err) => {
-            println!("{}", err);
+            println!("{}
+            ", err);
             None
         }
-    }
-        .unwrap();
+    }.unwrap();
 
 // Idle
     loop {
@@ -314,23 +313,31 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 fn print_post_status() {
     match CMOS::read_post_data() {
         Some(data) => {
-            println!("[post] power supply status: {}", data.power_supply_status());
+            println!("[post] power supply status: {}
+            ", data.power_supply_status());
             println!(
-                "[post] cmos checksum status: {}",
+                "[post] cmos checksum status: {}
+            ",
                 data.cmos_checksum_status()
             );
             println!(
-                "[post] cmos config matches: {}",
+                "[post] cmos config matches: {}
+            ",
                 data.configuration_match_status()
             );
             println!(
-                "[post] cmos memory amount matches: {}",
+                "[post] cmos memory amount matches: {}
+            ",
                 data.memory_match_status()
             );
-            println!("[post] drive health status: {}", data.drive_status());
-            println!("[post] time status: {}", data.time_status());
-            println!("[post] adapter init status: {}", data.adapter_init_status());
-            println!("[post] adapter status: {}", data.adapter_status());
+            println!("[post] drive health status: {}
+            ", data.drive_status());
+            println!("[post] time status: {}
+            ", data.time_status());
+            println!("[post] adapter init status: {}
+            ", data.adapter_init_status());
+            println!("[post] adapter status: {}
+            ", data.adapter_status());
         }
         None => println!("[post] unable to fetch POST information."),
     };
@@ -356,12 +363,13 @@ fn panic(info: &PanicInfo) -> ! {
         .downcast_mut::<crate::vgaterm::TerminalDevice>()
         .unwrap()
         .clear();
-    println!("*** KERNEL PANIC");
+    println!(" * **KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
     }
     if let Some(message) = info.message() {
-        println!("    {}", message);
+        println!("    {}
+            ", message);
     } else {
         println!("Unknown cause.");
     }
@@ -384,7 +392,7 @@ pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
         .downcast_mut::<crate::vgaterm::TerminalDevice>()
         .unwrap()
         .clear();
-    println!("*** OUT OF MEMORY");
+    println!(" * **OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();
     }

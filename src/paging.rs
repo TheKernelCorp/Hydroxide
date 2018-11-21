@@ -212,14 +212,13 @@ impl Paging {
                 table.identity_map(frame, flags, alloc).unwrap().flush();
             }
         }
-            // Map the exclusive range else {
-            let range = PhysFrame::<Size4KiB>::range(
-                PhysFrame::from_start_address(start).unwrap(),
-                PhysFrame::from_start_address(end).unwrap(),
-            );
-            for frame in range {
-                table.identity_map(frame, flags, alloc).unwrap().flush();
-            }
+        // Map the exclusive range else {
+        let range = PhysFrame::<Size4KiB>::range(
+            PhysFrame::from_start_address(start).unwrap(),
+            PhysFrame::from_start_address(end).unwrap(),
+        );
+        for frame in range {
+            table.identity_map(frame, flags, alloc).unwrap().flush();
         }
     }
 }

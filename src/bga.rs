@@ -6,6 +6,8 @@ use alloc::boxed::*;
 use alloc::vec;
 use rlibc::memcpy;
 
+use crate::ansi::{Ansi, AnsiEscape};
+
 use crate::pci::{PCIDevice, PCIFind, PCIBAR};
 
 const VBE_DISPI_GETCAPS: u16 = 2;
@@ -47,7 +49,8 @@ pub trait TerminalProvider {
 pub struct TerminalDriver<'a> {
     x: usize,
     y: usize,
-    color: u32,
+    fg_def: u32,
+    fg: u32,
     provider: &'a mut TerminalProvider,
 }
 
@@ -56,8 +59,40 @@ impl<'a> TerminalDriver<'a> {
         TerminalDriver {
             x: 0,
             y: 0,
-            color: 0xFFFFFFFF,
+            fg_def: Ansi::color(7),
+            fg: Ansi::color(7),
             provider,
+        }
+    }
+
+    pub fn write_str(&mut self, s: &str) {
+        let chars: Vec<char> = s.chars().collect();
+        let mut i = 0;
+
+        while i < chars.len() {
+            match chars[i] {
+                '\x1b' => {
+                    i += 1;
+                    if chars[i] == '[' {
+                        i += 1;
+                        match Ansi::parse(&chars[i..]) {
+                            (None, _) => {}
+                            (Some(AnsiEscape::Reset), adv) => {
+                                let def = self.fg_def;
+                                self.fg = def;
+                                i += adv;
+                            }
+                            (Some(AnsiEscape::Foreground(color)), adv) => {
+                                self.fg = Ansi::color(color);
+                                i += adv;
+                            }
+                        }
+                    }
+                }
+                _ => self.write_car(chars[i]),
+            }
+
+            i += 1;
         }
     }
 
@@ -68,14 +103,14 @@ impl<'a> TerminalDriver<'a> {
                 if self.x >= self.provider.get_width() {
                     self.new_line();
                 }
-                self.provider.draw_char(self.x * self.provider.get_char_width(), self.y * self.provider.get_char_height(), c, self.color);
+                self.provider.draw_char(self.x * self.provider.get_char_width(), self.y * self.provider.get_char_height(), c, self.fg);
                 self.x += 1;
             }
         }
     }
 
     pub fn set_color(&mut self, color: u32) {
-        self.color = color;
+        self.fg = color;
     }
 
     pub fn new_line(&mut self) {
@@ -90,9 +125,7 @@ impl<'a> TerminalDriver<'a> {
 
 impl<'a> core::fmt::Write for TerminalDriver<'a> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        for c in s.chars() {
-            self.write_car(c);
-        }
+        self.write_str(s);
         Ok(())
     }
 }
