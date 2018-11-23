@@ -39,7 +39,12 @@ impl Context {
     #[cold]
     #[inline(never)]
     #[naked]
-    pub unsafe fn switch_to(&mut self, next: &mut Context, stack_frame: &mut ExceptionStackFrame) {
+    pub unsafe fn switch_to(
+        &mut self,
+        next: &mut Context,
+        stack_frame: &mut ExceptionStackFrame,
+        intr_rflags: RFlags,
+    ) {
         asm!("mov $0, rsp" : "=r"(self.rsp) : : "memory" : "intel", "volatile");
         self.rip = stack_frame.instruction_pointer.as_u64();
         next.push_stack(self.rip);
@@ -49,8 +54,14 @@ impl Context {
         asm!("mov rbp, $0" : : "r"(next.rbp) : "memory" : "intel", "volatile");
         self.rflags = rflags::read_raw();
         if next.rflags == 0 {
+            if self.rflags == 0 {
+                self.rflags = intr_rflags.bits();
+            }
             next.rflags = self.rflags;
         }
+        let mut next_rflags = RFlags::from_bits_truncate(next.rflags);
+        next_rflags.set(RFlags::INTERRUPT_FLAG, true);
+        next.rflags = next_rflags.bits();
         rflags::write_raw(next.rflags);
     }
 }

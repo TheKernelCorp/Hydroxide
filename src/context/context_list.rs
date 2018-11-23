@@ -57,13 +57,16 @@ impl ContextList {
     pub fn spawn(&mut self, func: extern "C" fn()) -> Result<&Arc<RwLock<Context>>, &str> {
         let context_lock = self.new_context()?;
         let mut context = context_lock.write();
-        let mut stack = vec![0; 65536].into_boxed_slice();
+        let stack = vec![0; 65536].into_boxed_slice();
         let offset = stack.len() - mem::size_of::<usize>();
         let cr3 = Cr3::read();
         context
             .arch
             .set_stack((stack.as_ptr() as usize + offset) as u64);
-        context.arch.rip = func as u64;
+        #[allow(clippy::fn_to_numeric_cast)]
+        {
+            context.arch.rip = func as u64;
+        }
         context.kstack = Some(stack);
         Ok(context_lock)
     }

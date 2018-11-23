@@ -279,6 +279,7 @@ pub unsafe extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     // Idle
     loop {
+        print!("x");
         x86_64::instructions::hlt();
     }
 }
