@@ -266,6 +266,7 @@ pub unsafe extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
         Ok(context) => context.write().status = context::context::Status::Runnable,
         _ => {}
     };
+
     match context::contexts_mut().spawn(test2) {
         Ok(context) => context.write().status = context::context::Status::Runnable,
         _ => {}

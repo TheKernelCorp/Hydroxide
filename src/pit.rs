@@ -8,9 +8,6 @@ pub extern "x86-interrupt" fn handle_interrupt(stack_frame: &mut ExceptionStackF
     print!("b");
     // print!("#{:?}", stack_frame);
 
-    // Get current rflags
-    let rflags = x86_64::registers::rflags::read();
-
     // Disable interrupts
     x86_64::instructions::interrupts::disable();
 
@@ -21,6 +18,6 @@ pub extern "x86-interrupt" fn handle_interrupt(stack_frame: &mut ExceptionStackF
             .notify_end_of_interrupt(crate::idt::INT_PIT);
 
         // Do the context switch
-        switch::switch(stack_frame, rflags);
+        switch::switch(stack_frame);
     }
 }

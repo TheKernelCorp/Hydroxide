@@ -26,7 +26,7 @@ impl Context {
             id,
             status: Status::Blocked,
             running: false,
-            arch: arch::Context::new(),
+            arch: arch::Context::new(arch::CPUSnapshot::default()),
             kstack: None,
             stack: None,
         }
