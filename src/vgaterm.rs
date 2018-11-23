@@ -69,6 +69,15 @@ impl TerminalDevice {
         self.y = 0;
     }
 
+    pub fn get_pos(&mut self) -> (usize, usize) {
+        (self.x, self.y)
+    }
+
+    pub fn set_pos(&mut self, pos: (usize, usize)) {
+        self.x = pos.0;
+        self.y = pos.1;
+    }
+
     fn write_u8(&mut self, byte: u8) {
         match byte {
             // Carriage return
@@ -153,8 +162,8 @@ impl TerminalDevice {
     }
 }
 
-use crate::hal::{Device, DeviceType};
 use core::any::Any;
+use crate::hal::{Device, DeviceType};
 
 impl Device for TerminalDevice {
     fn get_type(&self) -> DeviceType {

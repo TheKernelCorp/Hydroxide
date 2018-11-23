@@ -1,5 +1,5 @@
-use crate::hal::{Device, DeviceType, DEVICE_MANAGER};
 use core::any::Any;
+use crate::hal::{Device, DeviceType, DEVICE_MANAGER};
 use x86_64::instructions::port::Port;
 
 pub enum SerialPort {

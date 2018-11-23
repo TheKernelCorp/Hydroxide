@@ -162,6 +162,7 @@ lazy_static! {
     pub static ref PAGING: Mutex<Paging> = Mutex::new(Paging {
         allocator: None,
         page_table: None,
+        table: 0
     });
 }
 
@@ -169,17 +170,20 @@ lazy_static! {
 pub struct Paging {
     allocator: Option<Allocator>,
     page_table: Option<RecursivePageTable<'static>>,
+    pub table: u64,
 }
 
 impl Paging {
     /// Initialize paging
     pub fn init(info: &'static mut BootInfo) {
+        let table_addr = info.p4_table_addr.clone();
         let table = info.p4_table_addr as *mut PageTable;
         let page_table = Some(RecursivePageTable::new(unsafe { &mut *table }).unwrap());
         let mmap: &'static mut MemoryMap = &mut info.memory_map;
         let paging: &mut Paging = &mut *PAGING.lock();
         paging.allocator = Some(Allocator { memory_map: mmap });
         paging.page_table = page_table;
+        paging.table = table_addr;
     }
 
     /// Identity map the specified physical memory range

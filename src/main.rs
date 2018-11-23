@@ -51,6 +51,9 @@
 #![feature(alloc)]
 #![feature(extern_crate_item_prelude)]
 #![feature(box_syntax)]
+#![feature(asm)]
+#![feature(naked_functions)]
+#![feature(thread_local)]
 
 //
 // Import crates
@@ -127,16 +130,19 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Global Descriptor Table
 mod gdt;
+
 use self::gdt::GDT;
 
 // Interrupt Descriptor Table
 // Task State Segment
 mod idt;
+
 use self::idt::IDT;
 
 // Intel 8259
 // Programmable Interrupt Controller
 mod pic;
+
 use self::pic::PIC8259;
 
 // Intel 825x
@@ -145,6 +151,7 @@ mod pit;
 
 // VGA Terminal Screen Buffer
 mod vgaterm;
+
 use self::vgaterm::{TerminalDevice, VGA_PTR};
 
 // Intel 8042
@@ -153,27 +160,35 @@ mod kbc;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
+
 use self::ps2kbd::PS2Keyboard;
 
 // Page Allocator
 mod paging;
+
 use self::paging::Paging;
 
 // Heap Allocator
 mod heap;
+
 use self::heap::{find_heap_space, map_heap};
 
 // CMOS
 mod cmos;
+
 use self::cmos::{POSTData, CMOS};
 
 // Hardware Abstraction Layer
 mod hal;
+
 use self::hal::DEVICE_MANAGER;
 
 // Serial Bus
 mod serial;
+
 use self::serial::{SerialDevice, SerialPort};
+
+mod context;
 
 //
 //
@@ -181,9 +196,45 @@ use self::serial::{SerialDevice, SerialPort};
 //
 //
 
+pub extern "C" fn test() {
+    /*// Initialize the PS/2 keyboard
+    PS2Keyboard::init();
+    // Print the current date and time
+    let datetime = CMOS::read_date_time();
+    println!(
+        "The date is {date}, the time is {time}.",
+        date = datetime.as_date(),
+        time = datetime.as_time(),
+    );
+
+    // Say hello
+    println!("Hello from Hydroxide.");*/
+
+    loop {
+        print!("a");
+        x86_64::instructions::hlt();
+    }
+}
+
+pub extern "C" fn test2() {
+    //println!("Hello from the second task!");
+
+    loop {
+        print!("c");
+        x86_64::instructions::hlt();
+    }
+}
+
 #[no_mangle]
 #[allow(clippy::empty_loop)]
-pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
+pub unsafe extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
+    let mut stack = None;
+    for map in bootinfo.memory_map.iter() {
+        if map.region_type == bootloader::bootinfo::MemoryRegionType::KernelStack {
+            stack = Some(map.range);
+        }
+    }
+
     // Initialize GDT and IDT
     GDT::init();
     IDT::init();
@@ -205,25 +256,26 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     // Print POST status
     print_post_status();
 
+    context::init(
+        (stack.unwrap().start_frame_number * 4096) as usize,
+        (stack.unwrap().start_frame_number * 4096) as usize
+            - (stack.unwrap().end_frame_number * 4096) as usize,
+    );
+
+    match context::contexts_mut().spawn(test) {
+        Ok(context) => context.write().status = context::context::Status::Runnable,
+        _ => {}
+    };
+    match context::contexts_mut().spawn(test2) {
+        Ok(context) => context.write().status = context::context::Status::Runnable,
+        _ => {}
+    };
+
     // Remap the PIC
     PIC8259::init();
 
     // Enable interrupts
     x86_64::instructions::interrupts::enable();
-
-    // Initialize the PS/2 keyboard
-    PS2Keyboard::init();
-
-    // Print the current date and time
-    let datetime = CMOS::read_date_time();
-    println!(
-        "The date is {date}, the time is {time}.",
-        date = datetime.as_date(),
-        time = datetime.as_time(),
-    );
-
-    // Say hello
-    println!("Hello from Hydroxide.");
 
     // Idle
     loop {
@@ -267,7 +319,7 @@ fn print_post_status() {
 #[panic_handler]
 #[allow(clippy::empty_loop)]
 fn panic(info: &PanicInfo) -> ! {
-    (*crate::hal::DEVICE_MANAGER
+    /*(*crate::hal::DEVICE_MANAGER
         .lock()
         .get_device("tty0")
         .unwrap()
@@ -275,7 +327,7 @@ fn panic(info: &PanicInfo) -> ! {
     .as_any()
     .downcast_mut::<crate::vgaterm::TerminalDevice>()
     .unwrap()
-    .clear();
+    .clear();*/
     println!("*** KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);

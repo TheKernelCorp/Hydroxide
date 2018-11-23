@@ -1,5 +1,5 @@
-use crate::paging::PAGING;
 use bootloader::bootinfo::{BootInfo, MemoryRegion, MemoryRegionType};
+use crate::paging::PAGING;
 use linked_list_allocator::LockedHeap;
 use x86_64::{structures::paging::PageTableFlags, PhysAddr};
 
