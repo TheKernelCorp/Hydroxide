@@ -108,6 +108,9 @@ impl Device for SerialDevice {
 
     fn write_bytes(&mut self, at: usize, val: &[u8], len: usize) {
         for b in val {
+            if *b == b'\n' {
+                self.write_byte(0, b'\r');
+            }
             self.write_byte(0, *b);
         }
     }
