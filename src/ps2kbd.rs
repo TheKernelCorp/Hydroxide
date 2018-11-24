@@ -80,7 +80,7 @@ impl PS2Keyboard {
             // Set scancode-set 2
             PS2Keyboard::set_scan_table(0x02);
             if let Some(code) = PS2Keyboard::get_scan_table() {
-                println!("[ps2kbd] info: verified usage of scan table {}", code);
+                log!(debug: "Verified usage of scan table {}.", code);
             }
 
             // Enable
@@ -99,11 +99,11 @@ impl PS2Keyboard {
     unsafe fn _run_self_test(resent: bool) {
         KBC::write_byte(KBD_COM_SELF_TEST);
         match KBC::read_byte() {
-            KBD_RES_ST_PASS => println!("[ps2kbd] info: self test passed"),
-            KBD_RES_ST_FAIL_A | KBD_RES_ST_FAIL_B => println!("[ps2kbd] error: self test failed"),
+            KBD_RES_ST_PASS => log!(debug: "Self-test passed."),
+            KBD_RES_ST_FAIL_A | KBD_RES_ST_FAIL_B => log!(error: "Self-test failed."),
             KBD_RES_RESEND if !resent => PS2Keyboard::_run_self_test(true),
-            KBD_RES_RESEND => println!("[ps2kbd] error: unable to run self test"),
-            b => println!("[ps2kbd] error: invalid response: {:x}", b),
+            KBD_RES_RESEND => log!(warn: "Unable to run self-test."),
+            b => log!(warn: "Invalid response: {:x}.", b),
         }
     }
 
@@ -115,10 +115,10 @@ impl PS2Keyboard {
         KBC::write_byte(KBD_COM_LED);
         KBC::write_byte(byte);
         match KBC::read_byte() {
-            KBD_RES_ACK => println!("[ps2kbd] info: updated led status"),
+            KBD_RES_ACK => log!(debug: "Successfully updated LED status."),
             KBD_RES_RESEND if !resent => PS2Keyboard::_set_leds(byte, true),
-            KBD_RES_RESEND => println!("[ps2kbd] error: unable to set led status"),
-            b => println!("[ps2kbd] error: invalid response: {:x}", b),
+            KBD_RES_RESEND => log!(warn: "Unable to set led status."),
+            b => log!(warn: "Invalid response: {:x}.", b),
         }
     }
 
@@ -130,10 +130,10 @@ impl PS2Keyboard {
         KBC::write_byte(KBD_COM_SCANCODE);
         KBC::write_byte(code);
         match KBC::read_byte() {
-            KBD_RES_ACK => println!("[ps2kbd] info: setting scan table {}", code),
+            KBD_RES_ACK => log!(debug: "Using scan set {}.", code),
             KBD_RES_RESEND if !resent => PS2Keyboard::_set_scan_table(code, true),
-            KBD_RES_RESEND => println!("[ps2kbd] error: unable to set scan table"),
-            b => println!("[ps2kbd] error: invalid response: {:x}", b),
+            KBD_RES_RESEND => log!(warn: "Unable to set scan table."),
+            b => log!(warn: "Invalid response: {:x}.", b),
         }
     }
 
@@ -155,11 +155,11 @@ impl PS2Keyboard {
             }
             KBD_RES_RESEND if !resent => PS2Keyboard::_get_scan_table(true),
             KBD_RES_RESEND => {
-                println!("[ps2kbd] error: unable to get scan table");
+                log!(warn: "Unable to get scan set.");
                 None
             }
             resp => {
-                println!("[ps2kbd] error: invalid response: 0x{:x}", resp);
+                log!(warn: "Invalid response: 0x{:x}", resp);
                 None
             }
         }

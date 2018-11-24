@@ -109,11 +109,31 @@ macro_rules! device_write {
 // A macro for kernel-level logging.
 macro_rules! log {
     (__ [$($device:expr),*] => $prefix:expr; $fmt:expr) => {{
-        $(device_write!(__formatted $device, format!("[{}] {}\r\n", $prefix, $fmt));)*
+        $(
+            device_write!(__formatted $device, match $device {
+                dev if dev.starts_with("com") => {
+                    format!(
+                        "{filename}\t[{prefix}] {fmt}\r\n",
+                        filename=file!(),
+                        prefix=$prefix,
+                        fmt=$fmt
+                    )
+                }
+                _ => {
+                    format!(
+                        "[{prefix}] {fmt}\r\n",
+                        prefix=$prefix,
+                        fmt=$fmt
+                    )
+                }
+            });
+        )*
     }};
     (debug: $($arg:tt)*) => (log!(__ ["com1"] => "debug"; format!($($arg)*)));
     ( info: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "info"; format!($($arg)*)));
     ( warn: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "warn"; format!($($arg)*)));
+    (error: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "error"; format!($($arg)*)));
+    (fault: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "fault"; format!($($arg)*)));
     ($($arg:tt)*) => (log!(info: $($arg)*));
 }
 
@@ -240,20 +260,29 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     );
 
     // Initialize devices
-    SerialDevice::init("com1", SerialPort::COM1);
+    SerialDevice::init("com1", SerialPort::COM1).unwrap();
+    log!(debug: "GDT and IDT initialization complete.");
+    log!(debug: "Heap initialization complete.");
     TerminalDevice::init("tty0", VGA_PTR);
+    log!(debug: "VGA text screen initialization complete.");
 
     // Print POST status
     print_post_status();
 
     // Remap the PIC
     PIC8259::init();
+    log!(debug: "PIC remapping complete.");
 
     // Enable interrupts
     x86_64::instructions::interrupts::enable();
+    log!(debug: "Interrupts enabled.");
 
     // Initialize the PS/2 keyboard
     PS2Keyboard::init();
+    log!(debug: "Keyboard initialization complete.");
+
+    // Say hello
+    println!("Hello from Hydroxide.");
 
     // Print the current date and time
     let datetime = CMOS::read_date_time();
@@ -262,11 +291,6 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
         date = datetime.as_date(),
         time = datetime.as_time(),
     );
-
-    // Say hello
-    println!("Hello from Hydroxide.");
-    log!(info: "Hello wrlod 0x{:x}", 1024);
-    loop {}
 
     // Detect a Bochs Graphics Adapter
     let bga = match BochsGraphicsAdapter::detect() {
