@@ -108,9 +108,9 @@ macro_rules! device_write {
 
 // A macro for kernel-level logging.
 macro_rules! log {
-    (__ [$($device:expr),*] => $prefix:expr; $fmt:expr) => {
-        $(device_write!(__formatted $device, format!("[{}] {}", $prefix, $fmt));)*
-    };
+    (__ [$($device:expr),*] => $prefix:expr; $fmt:expr) => {{
+        $(device_write!(__formatted $device, format!("[{}] {}\r\n", $prefix, $fmt));)*
+    }};
     (debug: $($arg:tt)*) => (log!(__ ["com1"] => "debug"; format!($($arg)*)));
     ( info: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "info"; format!($($arg)*)));
     ( warn: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "warn"; format!($($arg)*)));
@@ -340,25 +340,22 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 fn print_post_status() {
     match CMOS::read_post_data() {
         Some(data) => {
-            println!("[post] power supply status: {}", data.power_supply_status());
-            println!(
-                "[post] cmos checksum status: {}",
-                data.cmos_checksum_status()
-            );
-            println!(
-                "[post] cmos config matches: {}",
+            log!(debug: "POST power supply status: {}", data.power_supply_status());
+            log!(debug: "POST cmos checksum status: {}", data.cmos_checksum_status());
+            log!(
+                debug: "POST cmos config matches: {}",
                 data.configuration_match_status()
             );
-            println!(
-                "[post] cmos memory amount matches: {}",
+            log!(
+                debug: "POST cmos memory amount matches: {}",
                 data.memory_match_status()
             );
-            println!("[post] drive health status: {}", data.drive_status());
-            println!("[post] time status: {}", data.time_status());
-            println!("[post] adapter init status: {}", data.adapter_init_status());
-            println!("[post] adapter status: {}", data.adapter_status());
+            log!(debug: "POST drive health status: {}", data.drive_status());
+            log!(debug: "POST time status: {}", data.time_status());
+            log!(debug: "POST adapter init status: {}", data.adapter_init_status());
+            log!(debug: "POST adapter status: {}", data.adapter_status());
         }
-        None => println!("[post] unable to fetch POST information."),
+        None => log!(warn: "Unable to fetch POST information."),
     };
 }
 
