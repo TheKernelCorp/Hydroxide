@@ -340,6 +340,10 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 &mut term,
                 "\x1b[44;37mThis simulates a dark BSOD as we have no light colors :(\n",
             );
+            Write::write_str(
+                &mut term,
+                "\x1b[37;1;44mThis simulates a light BSOD as we have light colors :)\n",
+            );
 
             video.flush();
             Some(dev)
@@ -353,7 +357,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             None
         }
     }
-    .unwrap();
+        .unwrap();
 
     // Idle
     loop {
@@ -399,10 +403,10 @@ fn panic(info: &PanicInfo) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-    .as_any()
-    .downcast_mut::<crate::vgaterm::TerminalDevice>()
-    .unwrap()
-    .clear();
+        .as_any()
+        .downcast_mut::<crate::vgaterm::TerminalDevice>()
+        .unwrap()
+        .clear();
     println!(" * **KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
@@ -431,10 +435,10 @@ pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-    .as_any()
-    .downcast_mut::<crate::vgaterm::TerminalDevice>()
-    .unwrap()
-    .clear();
+        .as_any()
+        .downcast_mut::<crate::vgaterm::TerminalDevice>()
+        .unwrap()
+        .clear();
     println!(" * **OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();
