@@ -51,6 +51,7 @@
 #![feature(alloc)]
 #![feature(extern_crate_item_prelude)]
 #![feature(box_syntax)]
+#![feature(raw_vec_internals)]
 
 //
 // Import crates
@@ -63,7 +64,6 @@
 // imports are not there.
 //
 
-extern crate alloc;
 extern crate bitflags;
 extern crate bootloader;
 extern crate linked_list_allocator;
@@ -71,6 +71,9 @@ extern crate pc_keyboard;
 extern crate pic8259_simple;
 extern crate spin;
 extern crate x86_64;
+
+#[macro_use]
+extern crate alloc;
 
 //
 //
@@ -127,16 +130,19 @@ static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 // Global Descriptor Table
 mod gdt;
+
 use self::gdt::GDT;
 
 // Interrupt Descriptor Table
 // Task State Segment
 mod idt;
+
 use self::idt::IDT;
 
 // Intel 8259
 // Programmable Interrupt Controller
 mod pic;
+
 use self::pic::PIC8259;
 
 // Intel 825x
@@ -145,6 +151,7 @@ mod pit;
 
 // VGA Terminal Screen Buffer
 mod vgaterm;
+
 use self::vgaterm::{TerminalDevice, VGA_PTR};
 
 // Intel 8042
@@ -153,27 +160,43 @@ mod kbc;
 
 // Generic PS/2 Keyboard
 mod ps2kbd;
+
 use self::ps2kbd::PS2Keyboard;
 
 // Page Allocator
 mod paging;
+
 use self::paging::Paging;
 
 // Heap Allocator
 mod heap;
+
 use self::heap::{find_heap_space, map_heap};
+
+// Peripheral Component Interconnect
+mod pci;
+
+// Bochs Graphics Adapter
+mod bga;
+
+use self::bga::{BochsGraphicsAdapter, VideoDevice};
 
 // CMOS
 mod cmos;
+
 use self::cmos::{POSTData, CMOS};
 
 // Hardware Abstraction Layer
 mod hal;
+
 use self::hal::DEVICE_MANAGER;
 
 // Serial Bus
 mod serial;
+
 use self::serial::{SerialDevice, SerialPort};
+
+mod ansi;
 
 //
 //
@@ -225,6 +248,73 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     // Say hello
     println!("Hello from Hydroxide.");
 
+    // Detect a Bochs Graphics Adapter
+    let bga = match BochsGraphicsAdapter::detect() {
+        Ok(device) => {
+            let mut dev = BochsGraphicsAdapter::new(&device).init();
+            println!("[BGA @ 0x{:08x}] Found", dev.addr());
+            println!(
+                "[BGA @ 0x{:08x}] Version: 0x{:04x}",
+                dev.addr(),
+                dev.version()
+            );
+            println!("[BGA @ 0x{:08x}] Max BPP: {}", dev.addr(), dev.max_bpp);
+            println!("[BGA @ 0x{:08x}] Max Width: {}", dev.addr(), dev.max_width);
+            println!(
+                "[BGA @ 0x{:08x}] Max Height: {}",
+                dev.addr(),
+                dev.max_height
+            );
+            let mode = dev
+                .get_default_mode()
+                .and_then(|mode| {
+                    println!(
+                        "[BGA @ 0x{:08x}] Supports resolution: {}x{}x{}",
+                        dev.addr(),
+                        mode.width,
+                        mode.height,
+                        mode.bpp
+                    );
+                    Some(mode)
+                })
+                .unwrap();
+
+            dev.set_video_mode(&mode, true);
+
+            #[inline(always)]
+            fn get_col(r: u8, g: u8, b: u8) -> u32 {
+                (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
+            }
+
+            use core::fmt::Write;
+            use crate::bga::{GraphicsProvider, TerminalDriver};
+            let mut video = VideoDevice::new(&dev, &mode);
+            let mut term = TerminalDriver::new(&mut video);
+            Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
+            Write::write_str(&mut term, "This should fail! [\x1b[31mFAIL\x1b[0m]\n");
+            Write::write_str(
+                &mut term,
+                "\x1b[44;37mThis simulates a dark BSOD as we have no light colors :(\n",
+            );
+            Write::write_str(
+                &mut term,
+                "\x1b[37;1;44mThis simulates a light BSOD as we have light colors :)\n",
+            );
+
+            video.flush();
+            Some(dev)
+        }
+        Err(err) => {
+            println!(
+                "{}
+            ",
+                err
+            );
+            None
+        }
+    }
+        .unwrap();
+
     // Idle
     loop {
         x86_64::instructions::hlt();
@@ -234,23 +324,46 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 fn print_post_status() {
     match CMOS::read_post_data() {
         Some(data) => {
-            println!("[post] power supply status: {}", data.power_supply_status());
             println!(
-                "[post] cmos checksum status: {}",
+                "[post] power supply status: {}
+            ",
+                data.power_supply_status()
+            );
+            println!(
+                "[post] cmos checksum status: {}
+            ",
                 data.cmos_checksum_status()
             );
             println!(
-                "[post] cmos config matches: {}",
+                "[post] cmos config matches: {}
+            ",
                 data.configuration_match_status()
             );
             println!(
-                "[post] cmos memory amount matches: {}",
+                "[post] cmos memory amount matches: {}
+            ",
                 data.memory_match_status()
             );
-            println!("[post] drive health status: {}", data.drive_status());
-            println!("[post] time status: {}", data.time_status());
-            println!("[post] adapter init status: {}", data.adapter_init_status());
-            println!("[post] adapter status: {}", data.adapter_status());
+            println!(
+                "[post] drive health status: {}
+            ",
+                data.drive_status()
+            );
+            println!(
+                "[post] time status: {}
+            ",
+                data.time_status()
+            );
+            println!(
+                "[post] adapter init status: {}
+            ",
+                data.adapter_init_status()
+            );
+            println!(
+                "[post] adapter status: {}
+            ",
+                data.adapter_status()
+            );
         }
         None => println!("[post] unable to fetch POST information."),
     };
@@ -272,16 +385,20 @@ fn panic(info: &PanicInfo) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-    .as_any()
-    .downcast_mut::<crate::vgaterm::TerminalDevice>()
-    .unwrap()
-    .clear();
-    println!("*** KERNEL PANIC");
+        .as_any()
+        .downcast_mut::<crate::vgaterm::TerminalDevice>()
+        .unwrap()
+        .clear();
+    println!(" * **KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
     }
     if let Some(message) = info.message() {
-        println!("    {}", message);
+        println!(
+            "    {}
+            ",
+            message
+        );
     } else {
         println!("Unknown cause.");
     }
@@ -300,11 +417,11 @@ pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-    .as_any()
-    .downcast_mut::<crate::vgaterm::TerminalDevice>()
-    .unwrap()
-    .clear();
-    println!("*** OUT OF MEMORY");
+        .as_any()
+        .downcast_mut::<crate::vgaterm::TerminalDevice>()
+        .unwrap()
+        .clear();
+    println!(" * **OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();
     }
