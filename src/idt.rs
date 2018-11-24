@@ -38,14 +38,15 @@ impl IDT {
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut ExceptionStackFrame) {
-    println!("*** BREAKPOINT EXCEPTION\n{:#?}", stack_frame);
+    log!(fault: "*** BREAKPOINT EXCEPTION\r\n{:#?}", stack_frame);
+    loop {}
 }
 
 extern "x86-interrupt" fn page_fault_handler(
     stack_frame: &mut ExceptionStackFrame,
     error: PageFaultErrorCode,
 ) {
-    println!("*** PAGE FAULT\n{:#?}\n{:#?}", stack_frame, error);
+    log!(fault: "*** PAGE FAULT\r\n{:#?}\r\n{:#?}", stack_frame, error);
     loop {}
 }
 
@@ -53,8 +54,9 @@ extern "x86-interrupt" fn double_fault_handler(
     stack_frame: &mut ExceptionStackFrame,
     error_code: u64,
 ) {
-    println!(
-        "*** DOUBLE FAULT EXCEPTION\n{:#?}\nCODE: {:x}",
+    log!(
+        fault:
+        "*** DOUBLE FAULT EXCEPTION\r\n{:#?}\r\nCODE: {:x}",
         stack_frame, error_code
     );
     loop {}

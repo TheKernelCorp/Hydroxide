@@ -22,7 +22,7 @@ const PCIFIELD_CLASS: u8 = 0x0B;
 const PCIFIELD_HHEADER_TYPE: u8 = 0x0E;
 const PCIFIELD_SECONDARY_BUS_NUMBER: u8 = 0x19;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PCIDeviceAddress {
     bus: u8,
     slot: u8,
@@ -53,7 +53,7 @@ impl From<PCIDeviceAddress> for u32 {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PCIDeviceID {
     pub vendor_id: u16,
     pub device_id: u16,
@@ -68,6 +68,7 @@ impl PCIDeviceID {
     }
 }
 
+#[derive(Debug)]
 pub struct PCIFind {
     vendor_id: u16,
     device_id: u16,
@@ -78,7 +79,7 @@ pub struct PCIFind {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PCIDeviceType {
     class_id: u8,
     subclass_id: u8,
@@ -131,7 +132,7 @@ impl PCIFind {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct PCIDevice {
     pub address: PCIDeviceAddress,
     id: PCIDeviceID,
@@ -220,6 +221,14 @@ impl PCIDevice {
     }
 
     fn find_on_bus(bus: u8, find: &PCIFind, last: Option<u32>) -> Option<PCIDevice> {
+        log!(
+            debug:
+            "Searching for PCI device {vendor_id}:{device_id} on bus {bus}...",
+            vendor_id=find.vendor_id,
+            device_id=find.device_id,
+            bus=bus
+        );
+
         let mut next_device = 0u32;
         let mut found_device = None;
 
@@ -236,12 +245,9 @@ impl PCIDevice {
                 if last.unwrap_or(0u32) < devaddr
                     && (found_device.is_none() || devaddr < next_device)
                 {
-                    match PCIDevice::matches_pattern(addr, find) {
-                        Some(dev) => {
-                            found_device = Some(dev);
-                            next_device = devaddr;
-                        }
-                        _ => {}
+                    if let Some(dev) = PCIDevice::matches_pattern(addr, find) {
+                        found_device = Some(dev);
+                        next_device = devaddr;
                     }
                 }
                 let header = unsafe { PCIDevice::pci_read8(&addr, PCIFIELD_HHEADER_TYPE) };
@@ -263,7 +269,19 @@ impl PCIDevice {
             }
         }
 
-        return found_device;
+        if let Some(device) = found_device {
+            log!(
+                debug:
+                "Found device {} (class: {cid}; subclass: {scid}) on bus {bus} (slot: {slot}; func: {func}).",
+                cid=device.dev_type.class_id,
+                scid=device.dev_type.subclass_id,
+                bus=device.address.bus,
+                slot=device.address.slot,
+                func=device.address.func
+            );
+        }
+
+        found_device
     }
 
     pub fn search(find: &PCIFind, last: Option<u32>) -> Option<PCIDevice> {

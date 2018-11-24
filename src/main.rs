@@ -91,24 +91,62 @@ use linked_list_allocator::LockedHeap;
 //
 //
 
-macro_rules! print {
-    ($($arg:tt)*) => {
-        core::fmt::Write::write_fmt(
-            (*crate::hal::DEVICE_MANAGER
-                .lock()
-                .get_device("tty0")
-                .unwrap()
-                .lock()
-            ).as_any()
-            .downcast_mut::<crate::vgaterm::TerminalDevice>()
-            .unwrap(),
-            format_args!($($arg)*)
-        ).unwrap();
+// A macro to write a string to a device.
+macro_rules! device_write {
+    ($dev:expr, $($arg:tt)*) => {
+        device_write!(__formatted $dev, format!($($arg)*));
+    };
+    (__formatted $dev:expr, $fmt:expr) => {
+        (**crate::hal::DEVICE_MANAGER
+            .lock()
+            .get_device($dev)
+            .unwrap()
+            .lock())
+        .write_bytes(0, $fmt.as_bytes(), $fmt.len());
     };
 }
 
+// A macro for kernel-level logging.
+macro_rules! log {
+    (__ [$($device:expr),*] => $prefix:expr; $fmt:expr) => {{
+        $(
+            device_write!(__formatted $device, match $device {
+                dev if dev.starts_with("com") => {
+                    format!(
+                        "{filename}\t[{prefix}] {fmt}\r\n",
+                        filename=file!(),
+                        prefix=$prefix,
+                        fmt=$fmt
+                    )
+                }
+                _ => {
+                    format!(
+                        "[{prefix}] {fmt}\r\n",
+                        prefix=$prefix,
+                        fmt=$fmt
+                    )
+                }
+            });
+        )*
+    }};
+    (debug: $($arg:tt)*) => (log!(__ ["com1"] => "debug"; format!($($arg)*)));
+    ( info: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "info"; format!($($arg)*)));
+    ( warn: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "warn"; format!($($arg)*)));
+    (error: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "error"; format!($($arg)*)));
+    (fault: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "fault"; format!($($arg)*)));
+    ($($arg:tt)*) => (log!(info: $($arg)*));
+}
+
+// A macro for printing a string.
+macro_rules! print {
+    ($($arg:tt)*) => {
+        device_write!("tty0", $($arg)*);
+    };
+}
+
+// A macro for printing a string followed by a newline.
 macro_rules! println {
-    () => (print ! ("\n"));
+    () => (print!("\n"));
     ($fmt:expr) => (print!(concat!($fmt, "\n")));
     ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
 }
@@ -222,20 +260,29 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     );
 
     // Initialize devices
-    SerialDevice::init("com1", SerialPort::COM1);
+    SerialDevice::init("com1", SerialPort::COM1).unwrap();
+    log!(debug: "GDT and IDT initialization complete.");
+    log!(debug: "Heap initialization complete.");
     TerminalDevice::init("tty0", VGA_PTR);
+    log!(debug: "VGA text screen initialization complete.");
 
     // Print POST status
     print_post_status();
 
     // Remap the PIC
     PIC8259::init();
+    log!(debug: "PIC remapping complete.");
 
     // Enable interrupts
     x86_64::instructions::interrupts::enable();
+    log!(debug: "Interrupts enabled.");
 
     // Initialize the PS/2 keyboard
     PS2Keyboard::init();
+    log!(debug: "Keyboard initialization complete.");
+
+    // Say hello
+    println!("Hello from Hydroxide.");
 
     // Print the current date and time
     let datetime = CMOS::read_date_time();
@@ -244,9 +291,6 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
         date = datetime.as_date(),
         time = datetime.as_time(),
     );
-
-    // Say hello
-    println!("Hello from Hydroxide.");
 
     // Detect a Bochs Graphics Adapter
     let bga = match BochsGraphicsAdapter::detect() {
@@ -286,8 +330,8 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
             }
 
-            use core::fmt::Write;
             use crate::bga::{GraphicsProvider, TerminalDriver};
+            use core::fmt::Write;
             let mut video = VideoDevice::new(&dev, &mode);
             let mut term = TerminalDriver::new(&mut video);
             Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
@@ -324,48 +368,22 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 fn print_post_status() {
     match CMOS::read_post_data() {
         Some(data) => {
-            println!(
-                "[post] power supply status: {}
-            ",
-                data.power_supply_status()
-            );
-            println!(
-                "[post] cmos checksum status: {}
-            ",
-                data.cmos_checksum_status()
-            );
-            println!(
-                "[post] cmos config matches: {}
-            ",
+            log!(debug: "POST power supply status: {}", data.power_supply_status());
+            log!(debug: "POST cmos checksum status: {}", data.cmos_checksum_status());
+            log!(
+                debug: "POST cmos config matches: {}",
                 data.configuration_match_status()
             );
-            println!(
-                "[post] cmos memory amount matches: {}
-            ",
+            log!(
+                debug: "POST cmos memory amount matches: {}",
                 data.memory_match_status()
             );
-            println!(
-                "[post] drive health status: {}
-            ",
-                data.drive_status()
-            );
-            println!(
-                "[post] time status: {}
-            ",
-                data.time_status()
-            );
-            println!(
-                "[post] adapter init status: {}
-            ",
-                data.adapter_init_status()
-            );
-            println!(
-                "[post] adapter status: {}
-            ",
-                data.adapter_status()
-            );
+            log!(debug: "POST drive health status: {}", data.drive_status());
+            log!(debug: "POST time status: {}", data.time_status());
+            log!(debug: "POST adapter init status: {}", data.adapter_init_status());
+            log!(debug: "POST adapter status: {}", data.adapter_status());
         }
-        None => println!("[post] unable to fetch POST information."),
+        None => log!(warn: "Unable to fetch POST information."),
     };
 }
 
