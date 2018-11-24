@@ -91,32 +91,42 @@ use linked_list_allocator::LockedHeap;
 //
 //
 
+// A macro to write a string to a device.
 macro_rules! device_write {
-    ($dev:expr, $($arg:tt)*) => {{
-        let fmt = format!($($arg)*);
+    ($dev:expr, $($arg:tt)*) => {
+        device_write!(__formatted $dev, format!($($arg)*));
+    };
+    (__formatted $dev:expr, $fmt:expr) => {
         (**crate::hal::DEVICE_MANAGER
             .lock()
             .get_device($dev)
             .unwrap()
             .lock())
-        .write_bytes(0, fmt.as_bytes(), fmt.len());
-    }};
+        .write_bytes(0, $fmt.as_bytes(), $fmt.len());
+    };
 }
 
+// A macro for kernel-level logging.
 macro_rules! log {
-    (debug: $($arg:tt)*) => {
-        device_write!("com0", $($arg)*);
-    }
+    (__ [$($device:expr),*] => $prefix:expr; $fmt:expr) => {
+        $(device_write!(__formatted $device, format!("[{}] {}", $prefix, $fmt));)*
+    };
+    (debug: $($arg:tt)*) => (log!(__ ["com1"] => "debug"; format!($($arg)*)));
+    ( info: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "info"; format!($($arg)*)));
+    ( warn: $($arg:tt)*) => (log!(__ ["com1", "tty0"] => "warn"; format!($($arg)*)));
+    ($($arg:tt)*) => (log!(info: $($arg)*));
 }
 
+// A macro for printing a string.
 macro_rules! print {
     ($($arg:tt)*) => {
         device_write!("tty0", $($arg)*);
     };
 }
 
+// A macro for printing a string followed by a newline.
 macro_rules! println {
-    () => (print ! ("\n"));
+    () => (print!("\n"));
     ($fmt:expr) => (print!(concat!($fmt, "\n")));
     ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
 }
@@ -255,6 +265,8 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     // Say hello
     println!("Hello from Hydroxide.");
+    log!(info: "Hello wrlod 0x{:x}", 1024);
+    loop {}
 
     // Detect a Bochs Graphics Adapter
     let bga = match BochsGraphicsAdapter::detect() {
@@ -294,8 +306,8 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
                 (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b)
             }
 
-            use core::fmt::Write;
             use crate::bga::{GraphicsProvider, TerminalDriver};
+            use core::fmt::Write;
             let mut video = VideoDevice::new(&dev, &mode);
             let mut term = TerminalDriver::new(&mut video);
             Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
