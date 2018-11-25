@@ -55,6 +55,11 @@
 #![feature(naked_functions)]
 #![feature(thread_local)]
 #![feature(global_asm)]
+#![feature(stmt_expr_attributes)]
+#![feature(arbitrary_self_types)]
+#![feature(core_intrinsics)]
+#![feature(const_fn)]
+#![feature(const_fn_union)]
 
 //
 // Import crates
@@ -85,6 +90,7 @@ extern crate x86_64;
 use bootloader::bootinfo::BootInfo;
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
+use alloc::boxed::Box;
 
 //
 //
@@ -190,6 +196,10 @@ mod serial;
 use self::serial::{SerialDevice, SerialPort};
 
 mod context;
+use self::context::thread::Thread;
+
+mod arch;
+use self::arch::{cpu, cpu::Local};
 
 //
 //
@@ -250,40 +260,23 @@ pub unsafe extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     // Remap the PIC
     PIC8259::init();
 
-    {
-        let mut ctx = context::contexts_mut();
-        {
-            let mut context = ctx.new_context(1024 * 1024, || {}).unwrap().write();
-            context.unblock();
+    cpu::init(0);
 
-            context::CONTEXT_ID = context.id;
-        }
+    let mut thread = Thread::new(4 * 1024 * 1024, move || {
+        test();
+    }).unwrap();
 
-        {
-            let mut context = ctx.new_context(1024 * 1024, test).unwrap().write();
-            context.unblock();
-        }
+    let mut thread2 = Thread::new(4 * 1024 * 1024, move || {
+        test2();
+    }).unwrap();
 
-        {
-            let mut context = ctx.new_context(1024 * 1024, test2).unwrap().write();
-            context.unblock();
-        }
-    }
+    thread.start();
+    thread2.start();
 
-    context::switch::switch();
-
-    /*match context::contexts_mut().spawn(test2) {
-        Ok(context) => context.write().status = context::context::Status::Runnable,
-        _ => {}
-    };
-    
+    Local::context_switch();
     
     // Enable interrupts*/
-
-    x86_64::instructions::interrupts::enable();
-    loop {
-        x86_64::instructions::hlt();
-    }
+    unreachable!();
 }
 
 fn print_post_status() {

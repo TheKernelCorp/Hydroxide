@@ -33,6 +33,10 @@ impl IDT {
     pub fn init() {
         // Load the IDT
         STATIC_IDT.load();
+
+        unsafe {
+            crate::pit::set_frequency(8192);
+        }
     }
 }
 
