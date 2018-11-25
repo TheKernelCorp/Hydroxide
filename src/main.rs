@@ -54,6 +54,7 @@
 #![feature(asm)]
 #![feature(naked_functions)]
 #![feature(thread_local)]
+#![feature(global_asm)]
 
 //
 // Import crates
@@ -196,8 +197,8 @@ mod context;
 //
 //
 
-pub extern "C" fn test() {
-    /*// Initialize the PS/2 keyboard
+pub fn test() {
+    // Initialize the PS/2 keyboard
     PS2Keyboard::init();
     // Print the current date and time
     let datetime = CMOS::read_date_time();
@@ -208,21 +209,11 @@ pub extern "C" fn test() {
     );
 
     // Say hello
-    println!("Hello from Hydroxide.");*/
-
-    loop {
-        print!("a");
-        x86_64::instructions::hlt();
-    }
+    println!("Hello from Hydroxide.");
 }
 
-pub extern "C" fn test2() {
-    //println!("Hello from the second task!");
-
-    loop {
-        print!("c");
-        x86_64::instructions::hlt();
-    }
+pub fn test2() {
+    println!("Hello from the second task!");
 }
 
 #[no_mangle]
@@ -256,31 +247,41 @@ pub unsafe extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     // Print POST status
     print_post_status();
 
-    context::init(
-        (stack.unwrap().start_frame_number * 4096) as usize,
-        (stack.unwrap().start_frame_number * 4096) as usize
-            - (stack.unwrap().end_frame_number * 4096) as usize,
-    );
-
-    match context::contexts_mut().spawn(test) {
-        Ok(context) => context.write().status = context::context::Status::Runnable,
-        _ => {}
-    };
-
-    match context::contexts_mut().spawn(test2) {
-        Ok(context) => context.write().status = context::context::Status::Runnable,
-        _ => {}
-    };
-
     // Remap the PIC
     PIC8259::init();
 
-    // Enable interrupts
-    x86_64::instructions::interrupts::enable();
+    {
+        let mut ctx = context::contexts_mut();
+        {
+            let mut context = ctx.new_context(1024 * 1024, || {}).unwrap().write();
+            context.unblock();
 
-    // Idle
+            context::CONTEXT_ID = context.id;
+        }
+
+        {
+            let mut context = ctx.new_context(1024 * 1024, test).unwrap().write();
+            context.unblock();
+        }
+
+        {
+            let mut context = ctx.new_context(1024 * 1024, test2).unwrap().write();
+            context.unblock();
+        }
+    }
+
+    context::switch::switch();
+
+    /*match context::contexts_mut().spawn(test2) {
+        Ok(context) => context.write().status = context::context::Status::Runnable,
+        _ => {}
+    };
+    
+    
+    // Enable interrupts*/
+
+    x86_64::instructions::interrupts::enable();
     loop {
-        print!("x");
         x86_64::instructions::hlt();
     }
 }

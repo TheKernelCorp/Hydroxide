@@ -9,7 +9,7 @@ unsafe fn runnable(context: &Context) -> bool {
     !context.running && context.status == Status::Runnable
 }
 
-pub unsafe fn switch(stack_frame: &mut ExceptionStackFrame) -> bool {
+pub unsafe fn switch() -> bool {
     use core::ops::DerefMut;
 
     let from_ptr;
@@ -57,9 +57,7 @@ pub unsafe fn switch(stack_frame: &mut ExceptionStackFrame) -> bool {
     if to_ptr as usize == 0 {
         false
     } else {
-        (&mut *from_ptr)
-            .arch
-            .switch_to(&mut (&mut *to_ptr).arch, stack_frame);
+        (&mut *from_ptr).ctx.switch_to(&mut (&mut *to_ptr).ctx);
 
         true
     }

@@ -15,7 +15,7 @@ impl ContextList {
     pub fn new() -> Self {
         ContextList {
             map: BTreeMap::new(),
-            next_id: 1,
+            next_id: 0,
         }
     }
 
@@ -27,7 +27,10 @@ impl ContextList {
         self.map.iter()
     }
 
-    pub fn new_context(&mut self) -> Result<&Arc<RwLock<Context>>, &str> {
+    pub fn new_context<F>(&mut self, stack_size: usize, f: F) -> Result<&Arc<RwLock<Context>>, &str>
+    where
+        F: FnOnce() + Send + Sync,
+    {
         if self.next_id >= super::CONTEXT_MAX_CONTEXTS {
             self.next_id = 1;
         }
@@ -45,29 +48,12 @@ impl ContextList {
 
         assert!(self
             .map
-            .insert(id, Arc::new(RwLock::new(Context::new(id))))
+            .insert(id, Arc::new(RwLock::new(Context::new(id, stack_size, f))))
             .is_none());
 
         Ok(self
             .map
             .get(&id)
             .expect("Failed to insert new context. ID is out of bounds."))
-    }
-
-    pub fn spawn(&mut self, func: extern "C" fn()) -> Result<&Arc<RwLock<Context>>, &str> {
-        let context_lock = self.new_context()?;
-        let mut context = context_lock.write();
-        let stack = vec![0; 65536].into_boxed_slice();
-        let offset = stack.len() - mem::size_of::<usize>();
-        let cr3 = Cr3::read();
-        context
-            .arch
-            .set_stack((stack.as_ptr() as usize + offset) as u64);
-        #[allow(clippy::fn_to_numeric_cast)]
-        {
-            context.arch.rip = func as u64;
-        }
-        context.kstack = Some(stack);
-        Ok(context_lock)
     }
 }

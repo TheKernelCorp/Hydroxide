@@ -5,9 +5,6 @@ use x86_64::VirtAddr;
 use crate::context::switch;
 
 pub extern "x86-interrupt" fn handle_interrupt(stack_frame: &mut ExceptionStackFrame) {
-    print!("b");
-    // print!("#{:?}", stack_frame);
-
     // Disable interrupts
     x86_64::instructions::interrupts::disable();
 
@@ -18,6 +15,6 @@ pub extern "x86-interrupt" fn handle_interrupt(stack_frame: &mut ExceptionStackF
             .notify_end_of_interrupt(crate::idt::INT_PIT);
 
         // Do the context switch
-        switch::switch(stack_frame);
+        switch::switch();
     }
 }

@@ -24,19 +24,6 @@ static CONTEXTS: Once<RwLock<ContextList>> = Once::new();
 
 pub static mut CONTEXT_ID: usize = 0;
 
-pub unsafe fn init(kstack: usize, kstacksize: usize) {
-    let mut contexts = contexts_mut();
-    let context_lock = contexts
-        .new_context()
-        .expect("Could not initialize first context");
-    let mut context = context_lock.write();
-
-    context.status = Status::Runnable;
-    context.running = true;
-
-    CONTEXT_ID = context.id;
-}
-
 fn init_contexts() -> RwLock<ContextList> {
     RwLock::new(ContextList::new())
 }
