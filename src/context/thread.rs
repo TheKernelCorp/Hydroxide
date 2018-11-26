@@ -1,7 +1,10 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 use core::ptr;
 
-use super::{atomic::{Atomic, Ordering}, mpsc::IntrusiveNode};
+use super::{
+    atomic::{Atomic, Ordering},
+    mpsc::IntrusiveNode,
+};
 use crate::arch::x86_64::{context::Context, cpu::Local};
 
 impl IntrusiveNode for Thread {

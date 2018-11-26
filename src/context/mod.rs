@@ -5,9 +5,8 @@ use spin::{Once, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub mod thread;
 
-mod atomic;
+pub mod atomic;
 
 pub mod scheduler;
 
 mod mpsc;
-

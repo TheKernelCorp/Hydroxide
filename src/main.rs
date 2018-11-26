@@ -87,10 +87,10 @@ extern crate x86_64;
 //
 //
 
+use alloc::boxed::Box;
 use bootloader::bootinfo::BootInfo;
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
-use alloc::boxed::Box;
 
 //
 //
@@ -264,17 +264,19 @@ pub unsafe extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
     let mut thread = Thread::new(4 * 1024 * 1024, move || {
         test();
-    }).unwrap();
+    })
+    .unwrap();
 
     let mut thread2 = Thread::new(4 * 1024 * 1024, move || {
         test2();
-    }).unwrap();
+    })
+    .unwrap();
 
     thread.start();
     thread2.start();
 
     Local::context_switch();
-    
+
     // Enable interrupts*/
     unreachable!();
 }

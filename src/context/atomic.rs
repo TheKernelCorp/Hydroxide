@@ -8,7 +8,7 @@ union Transmute<T: Copy, U: Copy> {
 }
 
 const fn transmute_const<T: Copy, U: Copy>(from: T) -> U {
-     unsafe { Transmute::<T, U> { from }.to }
+    unsafe { Transmute::<T, U> { from }.to }
 }
 
 macro_rules! call_atomic {

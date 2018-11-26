@@ -4,8 +4,10 @@ use core::{cell::RefCell, ptr::NonNull};
 use lazy_static::lazy_static;
 use spin::Mutex;
 
+use crate::arch::lock::IrqSpinlock;
+
 lazy_static! {
-    pub static ref DEVICE_MANAGER: Mutex<DeviceManager> = Mutex::new(DeviceManager {
+    pub static ref DEVICE_MANAGER: IrqSpinlock<DeviceManager> = IrqSpinlock::new(DeviceManager {
         devices: BTreeMap::new()
     });
 }
@@ -20,7 +22,7 @@ pub trait Device {
 }
 
 pub struct DeviceManager {
-    devices: BTreeMap<&'static str, Mutex<Box<dyn Device + Sync + Send>>>,
+    devices: BTreeMap<&'static str, IrqSpinlock<Box<dyn Device + Sync + Send>>>,
 }
 
 impl DeviceManager {
@@ -32,14 +34,14 @@ impl DeviceManager {
         if self.devices.contains_key(name) {
             return Err(format!("Device {} already registered.", name));
         }
-        self.devices.insert(name, Mutex::new(dev));
+        self.devices.insert(name, IrqSpinlock::new(dev));
         Ok(())
     }
 
     pub fn get_device(
         &mut self,
         name: &'static str,
-    ) -> Option<&Mutex<Box<dyn Device + Sync + Send>>> {
+    ) -> Option<&IrqSpinlock<Box<dyn Device + Sync + Send>>> {
         let dev = self.devices.get(name).unwrap();
         Some(dev)
     }
