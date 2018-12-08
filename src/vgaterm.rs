@@ -158,7 +158,7 @@ use core::any::Any;
 
 impl Device for TerminalDevice {
     fn get_type(&self) -> DeviceType {
-        return DeviceType::CharDevice;
+        DeviceType::CharDevice
     }
 
     fn write_byte(&mut self, at: usize, val: u8) {
