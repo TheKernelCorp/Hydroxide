@@ -263,7 +263,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
     SerialDevice::init("com1", SerialPort::COM1).unwrap();
     log!(debug: "GDT and IDT initialization complete.");
     log!(debug: "Heap initialization complete.");
-    TerminalDevice::init("tty0", VGA_PTR);
+    TerminalDevice::init("tty0", VGA_PTR).unwrap();
     log!(debug: "VGA text screen initialization complete.");
 
     // Print POST status
@@ -332,20 +332,25 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
 
             use crate::bga::{GraphicsProvider, TerminalDriver};
             use core::fmt::Write;
-            let mut video = VideoDevice::new(&dev, &mode);
-            let mut term = TerminalDriver::new(&mut video);
-            Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
-            Write::write_str(&mut term, "This should fail! [\x1b[31mFAIL\x1b[0m]\n");
-            Write::write_str(
-                &mut term,
-                "\x1b[44;37mThis simulates a dark BSOD as we have no light colors :(\n",
-            );
-            Write::write_str(
-                &mut term,
-                "\x1b[37;1;44mThis simulates a light BSOD as we have light colors :)\n",
-            );
+            let video = VideoDevice::new(&dev, &mode);
+            let video = alloc::sync::Arc::new(core::cell::RefCell::new(video));
+            let mut term = TerminalDriver::new(video.clone());
+            DEVICE_MANAGER
+                .lock()
+                .register_device("fbtty0", box term)
+                .unwrap();
+            // Write::write_str(&mut term, "Hello World! [\x1b[32mOK\x1b[0m]\n");
+            // Write::write_str(&mut term, "This should fail! [\x1b[31mFAIL\x1b[0m]\n");
+            // Write::write_str(
+            //     &mut term,
+            //     "\x1b[44;37mThis simulates a dark BSOD as we have no light colors :(\n",
+            // );
+            // Write::write_str(
+            //     &mut term,
+            //     "\x1b[37;1;44mThis simulates a light BSOD as we have light colors :)\n",
+            // );
 
-            video.flush();
+            video.borrow_mut().flush();
             Some(dev)
         }
         Err(err) => {
@@ -357,7 +362,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             None
         }
     }
-        .unwrap();
+    .unwrap();
 
     // Idle
     loop {
@@ -403,10 +408,10 @@ fn panic(info: &PanicInfo) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-        .as_any()
-        .downcast_mut::<crate::vgaterm::TerminalDevice>()
-        .unwrap()
-        .clear();
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!(" * **KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
@@ -435,10 +440,10 @@ pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-        .as_any()
-        .downcast_mut::<crate::vgaterm::TerminalDevice>()
-        .unwrap()
-        .clear();
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!(" * **OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();

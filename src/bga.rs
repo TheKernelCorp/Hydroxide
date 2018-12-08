@@ -2,12 +2,13 @@ use alloc::boxed::*;
 use alloc::prelude::*;
 use alloc::slice;
 use alloc::vec;
+use core::any::Any;
 use core::ptr::Unique;
 use lazy_static::lazy_static;
 use rlibc::memcpy;
 
 use crate::ansi::{Ansi, AnsiEscape};
-
+use crate::hal::{Device, DeviceType};
 use crate::pci::{PCIDevice, PCIFind, PCIBAR};
 
 const VBE_DISPI_GETCAPS: u16 = 2;
@@ -46,18 +47,27 @@ pub trait TerminalProvider {
     fn draw_char(&mut self, x: usize, y: usize, character: char, fg: u32, bg: u32);
 }
 
-pub struct TerminalDriver<'a> {
+pub struct TerminalDriver<T>
+where
+    T: TerminalProvider + Sized,
+{
     x: usize,
     y: usize,
     fg_def: u32,
     fg: u32,
     bg_def: u32,
     bg: u32,
-    provider: &'a mut TerminalProvider,
+    provider: alloc::sync::Arc<core::cell::RefCell<T>>,
 }
 
-impl<'a> TerminalDriver<'a> {
-    pub fn new(provider: &'a mut TerminalProvider) -> TerminalDriver<'a> {
+impl<T> TerminalDriver<T>
+where
+    T: TerminalProvider + Sized,
+{
+    pub fn new(provider: alloc::sync::Arc<core::cell::RefCell<T>>) -> TerminalDriver<T>
+    where
+        T: TerminalProvider + Sized,
+    {
         TerminalDriver {
             x: 0,
             y: 0,
@@ -98,7 +108,7 @@ impl<'a> TerminalDriver<'a> {
                     }
                     i += skip;
                 }
-                _ => self.write_car(chars[i]),
+                _ => self.write_char(chars[i]),
             }
 
             i += 1;
@@ -107,16 +117,18 @@ impl<'a> TerminalDriver<'a> {
         self.reset();
     }
 
-    pub fn write_car(&mut self, c: char) {
+    pub fn write_char(&mut self, c: char) {
         match c {
             '\n' => self.new_line(),
             _ => {
-                if self.x >= self.provider.get_width() {
+                if self.x >= self.provider.borrow().get_width() {
                     self.new_line();
                 }
-                self.provider.draw_char(
-                    self.x * self.provider.get_char_width(),
-                    self.y * self.provider.get_char_height(),
+                let width = self.provider.borrow().get_char_width();
+                let height = self.provider.borrow().get_char_height();
+                self.provider.borrow_mut().draw_char(
+                    self.x * width,
+                    self.y * height,
                     c,
                     self.fg,
                     self.bg,
@@ -141,7 +153,7 @@ impl<'a> TerminalDriver<'a> {
 
     pub fn new_line(&mut self) {
         self.x = 0;
-        if self.y < self.provider.get_height() - 1 {
+        if self.y < self.provider.borrow().get_height() - 1 {
             self.y += 1;
         } else {
             // TODO: Scroll
@@ -149,7 +161,10 @@ impl<'a> TerminalDriver<'a> {
     }
 }
 
-impl<'a> core::fmt::Write for TerminalDriver<'a> {
+impl<T> core::fmt::Write for TerminalDriver<T>
+where
+    T: TerminalProvider + Sized,
+{
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.write_str(s);
         Ok(())
@@ -355,3 +370,29 @@ impl BochsGraphicsAdapter {
         }
     }
 }
+
+impl<T: 'static> Device for TerminalDriver<T>
+where
+    T: TerminalProvider + Sized,
+{
+    fn get_type(&self) -> DeviceType {
+        DeviceType::CharDevice
+    }
+
+    fn write_byte(&mut self, at: usize, val: u8) {
+        self.write_char(val as char);
+    }
+
+    fn write_bytes(&mut self, at: usize, val: &[u8], len: usize) {
+        for b in val {
+            self.write_byte(0, *b);
+        }
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+unsafe impl<T> Send for TerminalDriver<T> where T: TerminalProvider + Sized {}
+unsafe impl<T> Sync for TerminalDriver<T> where T: TerminalProvider + Sized {}
