@@ -2,7 +2,7 @@
 name = "hydroxide"
 version = "0.1.0"
 authors = ["SplittyDev <splittydev@protonmail.com>"]
-edition = "2021"
+edition = "2018"
 
 [dependencies]
 x86_64 = { version = "0.14.9", features = ['nightly', 'instructions'] }
