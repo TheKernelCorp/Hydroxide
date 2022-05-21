@@ -48,8 +48,6 @@
 // and helpful messages in case of kernel panics.
 //
 #![feature(panic_info_message)]
-#![feature(alloc)]
-#![feature(extern_crate_item_prelude)]
 #![feature(box_syntax)]
 #![feature(raw_vec_internals)]
 
@@ -82,6 +80,7 @@ extern crate alloc;
 //
 
 use bootloader::BootInfo;
+#[cfg(not(test))]
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
