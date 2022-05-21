@@ -1,9 +1,4 @@
-use alloc::boxed::Box;
-use core::ptr;
-use core::ptr::NonNull;
 use core::ptr::Unique;
-use lazy_static::lazy_static;
-use spin::Mutex;
 use x86_64::instructions::port::Port;
 
 use crate::hal::DEVICE_MANAGER;

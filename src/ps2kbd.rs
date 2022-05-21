@@ -3,7 +3,7 @@
 use crate::kbc::KBC;
 use crate::pic::PIC8259;
 use lazy_static::lazy_static;
-use pc_keyboard::{layouts::Us104Key, DecodedKey, Keyboard, ScancodeSet1};
+use pc_keyboard::{layouts::Us104Key, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use spin::Mutex;
 use x86_64::structures::idt::InterruptStackFrame;
 
@@ -13,7 +13,7 @@ use x86_64::structures::idt::InterruptStackFrame;
 
 lazy_static! {
     pub static ref KEYBOARD: Mutex<Keyboard<Us104Key, ScancodeSet1>> =
-        Mutex::new(Keyboard::new(Us104Key, ScancodeSet1));
+        Mutex::new(Keyboard::new(Us104Key, ScancodeSet1, HandleControl::Ignore));
     pub static ref KEYBOARD_INITIALIZED: Mutex<bool> = Mutex::new(false);
 }
 

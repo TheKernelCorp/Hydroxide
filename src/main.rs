@@ -221,12 +221,10 @@ use self::bga::{BochsGraphicsAdapter, VideoDevice};
 // CMOS
 mod cmos;
 
-use self::cmos::{POSTData, CMOS};
+use self::cmos::CMOS;
 
 // Hardware Abstraction Layer
 mod hal;
-
-use self::hal::DEVICE_MANAGER;
 
 // Serial Bus
 mod serial;

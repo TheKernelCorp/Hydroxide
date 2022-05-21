@@ -168,7 +168,7 @@ impl Allocator {
     }
 }
 
-impl<'a> FrameAllocator<Size4KiB> for Allocator {
+unsafe impl<'a> FrameAllocator<Size4KiB> for Allocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
         self.allocate_frame(MemoryRegionKind::PageTable)
     }
@@ -187,10 +187,13 @@ pub struct Paging {
     page_table: Option<RecursivePageTable<'static>>,
 }
 
+unsafe impl Sync for Paging {}
+unsafe impl Send for Paging {}
+
 impl Paging {
     /// Initialize paging
     pub fn init(info: &'static mut BootInfo) {
-        let table = info.p4_table_addr as *mut PageTable;
+        let table = info.recursive_index.into_option().unwrap() as *mut PageTable;
         let page_table = Some(RecursivePageTable::new(unsafe { &mut *table }).unwrap());
         let mmap: &'static mut MemoryRegions = &mut info.memory_regions;
         let paging: &mut Paging = &mut *PAGING.lock();

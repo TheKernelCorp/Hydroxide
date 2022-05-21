@@ -1,6 +1,5 @@
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, format, string::String};
 use core::any::Any;
-use core::{cell::RefCell, ptr::NonNull};
 use lazy_static::lazy_static;
 use spin::Mutex;
 

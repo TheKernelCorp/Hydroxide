@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use x86_64::{
-    instructions::{segmentation::set_cs, tables::load_tss},
+    instructions::{segmentation::CS, tables::load_tss},
+    registers::segmentation::Segment,
     structures::{
         gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
         tss::TaskStateSegment,
@@ -54,7 +55,7 @@ impl GDT {
 
         unsafe {
             // Reload the kernel code segment register
-            set_cs(STATIC_GDT.1.code_selector);
+            CS::set_reg(STATIC_GDT.1.code_selector);
 
             // Load the task state register
             load_tss(STATIC_GDT.1.tss_selector); // ltr
