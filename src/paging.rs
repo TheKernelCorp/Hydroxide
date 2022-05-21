@@ -1,9 +1,12 @@
-use bootloader::bootinfo::{BootInfo, FrameRange, MemoryMap, MemoryRegion, MemoryRegionType};
+use bootloader::{
+    boot_info::{MemoryRegion, MemoryRegionKind, MemoryRegions},
+    BootInfo,
+};
 use lazy_static::lazy_static;
 use spin::Mutex;
 use x86_64::{
     structures::paging::{
-        FrameAllocator, Mapper, PageTable, PageTableFlags, PhysFrame, PhysFrameRange,
+        frame::PhysFrameRange, FrameAllocator, Mapper, PageTable, PageTableFlags, PhysFrame,
         RecursivePageTable, Size4KiB,
     },
     PhysAddr,
@@ -11,7 +14,18 @@ use x86_64::{
 
 /// Memory allocator
 pub struct Allocator {
-    pub memory_map: &'static mut MemoryMap,
+    pub memory_map: &'static mut MemoryRegions,
+}
+
+pub struct FrameRange {
+    start: u64,
+    end: u64,
+}
+
+impl FrameRange {
+    pub fn new(start: u64, end: u64) -> FrameRange {
+        FrameRange { start, end }
+    }
 }
 
 impl Allocator {
@@ -32,14 +46,14 @@ impl Allocator {
     }
 
     /// Allocate a physical memory frame
-    pub fn allocate_frame(&mut self, region_type: MemoryRegionType) -> Option<PhysFrame> {
+    pub fn allocate_frame(&mut self, region_type: MemoryRegionKind) -> Option<PhysFrame> {
         // Try to find an existing region of the same type that can be enlarged
         let mut iter = self.memory_map.iter_mut().peekable();
         while let Some(region) = iter.next() {
             if region.region_type == region_type {
                 if let Some(next) = iter.peek() {
                     if next.range.start_frame_number == region.range.end_frame_number
-                        && next.region_type == MemoryRegionType::Usable
+                        && next.region_type == MemoryRegionKind::Usable
                         && !next.range.is_empty()
                     {
                         let frame = Allocator::phys_range(region.range).end;
@@ -56,7 +70,7 @@ impl Allocator {
             I: Iterator<Item = &'a mut MemoryRegion>,
         {
             for region in iter {
-                if region.region_type != MemoryRegionType::Usable {
+                if region.region_type != MemoryRegionKind::Usable {
                     continue;
                 }
                 if region.range.is_empty() {
@@ -70,7 +84,7 @@ impl Allocator {
             None
         }
 
-        let result = if region_type == MemoryRegionType::PageTable {
+        let result = if region_type == MemoryRegionKind::PageTable {
             // Prevent fragmentation when page tables are allocated in between
             split_usable_region(&mut self.memory_map.iter_mut().rev())
         } else {
@@ -78,9 +92,11 @@ impl Allocator {
         };
 
         if let Some((frame, range)) = result {
+            let range = Allocator::map_range(range);
             self.memory_map.add_region(MemoryRegion {
-                range: Allocator::map_range(range),
-                region_type,
+                start: range.start,
+                end: range.end,
+                kind: region_type,
             });
             Some(frame)
         } else {
@@ -101,7 +117,7 @@ impl Allocator {
                 continue;
             }
 
-            if r.region_type != MemoryRegionType::Usable {
+            if r.region_type != MemoryRegionKind::Usable {
                 panic!(
                     "region {:x?} overlaps with non-usable region {:x?}",
                     region, r
@@ -153,8 +169,8 @@ impl Allocator {
 }
 
 impl<'a> FrameAllocator<Size4KiB> for Allocator {
-    fn alloc(&mut self) -> Option<PhysFrame<Size4KiB>> {
-        self.allocate_frame(MemoryRegionType::PageTable)
+    fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
+        self.allocate_frame(MemoryRegionKind::PageTable)
     }
 }
 
@@ -176,7 +192,7 @@ impl Paging {
     pub fn init(info: &'static mut BootInfo) {
         let table = info.p4_table_addr as *mut PageTable;
         let page_table = Some(RecursivePageTable::new(unsafe { &mut *table }).unwrap());
-        let mmap: &'static mut MemoryMap = &mut info.memory_map;
+        let mmap: &'static mut MemoryRegions = &mut info.memory_regions;
         let paging: &mut Paging = &mut *PAGING.lock();
         paging.allocator = Some(Allocator { memory_map: mmap });
         paging.page_table = page_table;
@@ -209,7 +225,7 @@ impl Paging {
                 PhysFrame::from_start_address(end).unwrap(),
             );
             for frame in range {
-                table.identity_map(frame, flags, alloc).unwrap().flush();
+                unsafe { table.identity_map(frame, flags, alloc).unwrap().flush() }
             }
         }
         // Map the exclusive range else {
@@ -218,7 +234,7 @@ impl Paging {
             PhysFrame::from_start_address(end).unwrap(),
         );
         for frame in range {
-            table.identity_map(frame, flags, alloc).unwrap().flush();
+            unsafe { table.identity_map(frame, flags, alloc).unwrap().flush() }
         }
     }
 }

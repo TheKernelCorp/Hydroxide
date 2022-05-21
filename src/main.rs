@@ -68,7 +68,7 @@ extern crate bitflags;
 extern crate bootloader;
 extern crate linked_list_allocator;
 extern crate pc_keyboard;
-extern crate pic8259_simple;
+extern crate pic8259;
 extern crate spin;
 extern crate x86_64;
 
@@ -81,7 +81,7 @@ extern crate alloc;
 //
 //
 
-use bootloader::bootinfo::BootInfo;
+use bootloader::BootInfo;
 use core::panic::PanicInfo;
 use linked_list_allocator::LockedHeap;
 
@@ -357,7 +357,7 @@ pub extern "C" fn _start(bootinfo: &'static mut BootInfo) -> ! {
             None
         }
     }
-        .unwrap();
+    .unwrap();
 
     // Idle
     loop {
@@ -403,10 +403,10 @@ fn panic(info: &PanicInfo) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-        .as_any()
-        .downcast_mut::<crate::vgaterm::TerminalDevice>()
-        .unwrap()
-        .clear();
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!(" * **KERNEL PANIC");
     if let Some(location) = info.location() {
         println!(" at {}", location);
@@ -435,10 +435,10 @@ pub extern "C" fn oom(_: ::core::alloc::Layout) -> ! {
         .get_device("tty0")
         .unwrap()
         .lock())
-        .as_any()
-        .downcast_mut::<crate::vgaterm::TerminalDevice>()
-        .unwrap()
-        .clear();
+    .as_any()
+    .downcast_mut::<crate::vgaterm::TerminalDevice>()
+    .unwrap()
+    .clear();
     println!(" * **OUT OF MEMORY");
     loop {
         x86_64::instructions::hlt();

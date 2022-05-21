@@ -1,5 +1,5 @@
 use crate::paging::PAGING;
-use bootloader::bootinfo::{BootInfo, MemoryRegion, MemoryRegionType};
+use bootloader::{boot_info::MemoryRegion, boot_info::MemoryRegionKind, BootInfo};
 use linked_list_allocator::LockedHeap;
 use x86_64::{structures::paging::PageTableFlags, PhysAddr};
 
@@ -14,7 +14,7 @@ pub fn find_heap_space(bootinfo: &BootInfo) -> (u64, u64) {
     // Iterate over all memory regions
     for region in bootinfo.memory_map.iter() {
         // Test whether the region is usable
-        if region.region_type != MemoryRegionType::Usable {
+        if region.region_type != MemoryRegionKind::Usable {
             continue;
         }
 
