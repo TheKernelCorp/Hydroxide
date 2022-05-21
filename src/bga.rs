@@ -1,7 +1,6 @@
 use alloc::boxed::*;
-use alloc::prelude::*;
 use alloc::slice;
-use alloc::vec;
+use alloc::vec::Vec;
 use core::ptr::Unique;
 use lazy_static::lazy_static;
 use rlibc::memcpy;
@@ -53,11 +52,11 @@ pub struct TerminalDriver<'a> {
     fg: u32,
     bg_def: u32,
     bg: u32,
-    provider: &'a mut TerminalProvider,
+    provider: &'a mut dyn TerminalProvider,
 }
 
 impl<'a> TerminalDriver<'a> {
-    pub fn new(provider: &'a mut TerminalProvider) -> TerminalDriver<'a> {
+    pub fn new(provider: &'a mut dyn TerminalProvider) -> TerminalDriver<'a> {
         TerminalDriver {
             x: 0,
             y: 0,

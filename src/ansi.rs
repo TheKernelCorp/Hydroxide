@@ -1,4 +1,4 @@
-use alloc::prelude::*;
+use alloc::{string::String, vec::Vec};
 use core::slice;
 
 pub enum ColorPlace {}
@@ -55,21 +55,13 @@ impl Ansi {
                     light = true;
                     None
                 }
-                2...8 => None,
-                30...37 => {
-                    let color = if !light {
-                        num - 30
-                    } else {
-                        num - 22
-                    };
+                2..=8 => None,
+                30..=37 => {
+                    let color = if !light { num - 30 } else { num - 22 };
                     Some(AnsiEscape::Foreground(color))
                 }
-                40...47 => {
-                    let color = if !light {
-                        num - 40
-                    } else {
-                        num - 32
-                    };
+                40..=47 => {
+                    let color = if !light { num - 40 } else { num - 32 };
                     Some(AnsiEscape::Background(color))
                 }
                 _ => None,
