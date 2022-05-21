@@ -5,7 +5,7 @@ use crate::pic::PIC8259;
 use lazy_static::lazy_static;
 use pc_keyboard::{layouts::Us104Key, DecodedKey, Keyboard, ScancodeSet1};
 use spin::Mutex;
-use x86_64::structures::idt::ExceptionStackFrame;
+use x86_64::structures::idt::InterruptStackFrame;
 
 //
 // Global state
@@ -186,7 +186,7 @@ fn read_next_key() {
     };
 }
 
-pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut ExceptionStackFrame) {
+pub extern "x86-interrupt" fn handle_interrupt(_stack_frame: &mut InterruptStackFrame) {
     // Is the keyboard already initialized?
     if *KEYBOARD_INITIALIZED.lock() {
         // Process the next key
