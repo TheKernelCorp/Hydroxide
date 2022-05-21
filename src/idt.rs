@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use x86_64::structures::idt::{ExceptionStackFrame, InterruptDescriptorTable, PageFaultErrorCode};
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
 //
 // Constants
@@ -37,13 +37,13 @@ impl IDT {
     }
 }
 
-extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut ExceptionStackFrame) {
+extern "x86-interrupt" fn breakpoint_handler(stack_frame: &mut InterruptStackFrame) {
     log!(fault: "*** BREAKPOINT EXCEPTION\r\n{:#?}", stack_frame);
     loop {}
 }
 
 extern "x86-interrupt" fn page_fault_handler(
-    stack_frame: &mut ExceptionStackFrame,
+    stack_frame: &mut InterruptStackFrame,
     error: PageFaultErrorCode,
 ) {
     log!(fault: "*** PAGE FAULT\r\n{:#?}\r\n{:#?}", stack_frame, error);
@@ -51,7 +51,7 @@ extern "x86-interrupt" fn page_fault_handler(
 }
 
 extern "x86-interrupt" fn double_fault_handler(
-    stack_frame: &mut ExceptionStackFrame,
+    stack_frame: &mut InterruptStackFrame,
     error_code: u64,
 ) {
     log!(
